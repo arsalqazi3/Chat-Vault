@@ -1,5 +1,6 @@
 # --- Confidential chat data: never commit ---
-data/
+# Leading slash = only the top-level data/ folder (not the chat_vault/data package).
+/data/
 *.db
 *.db-journal
 *.db-wal

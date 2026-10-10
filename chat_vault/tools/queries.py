@@ -182,9 +182,7 @@ class VaultReader:
         # Dates filter on created_at. Timestamps are ISO 8601 strings, so plain
         # string comparison orders them correctly. to_date is inclusive.
         start = parse_day(from_date, "from_date").isoformat() if from_date else None
-        end = (
-            (parse_day(to_date, "to_date") + timedelta(days=1)).isoformat() if to_date else None
-        )
+        end = (parse_day(to_date, "to_date") + timedelta(days=1)).isoformat() if to_date else None
         sql = """
         SELECT c.id, c.title, c.source, c.created_at, c.updated_at,
                (SELECT COUNT(*) FROM messages m WHERE m.chat_id = c.id) AS message_count

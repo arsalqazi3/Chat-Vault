@@ -24,6 +24,8 @@ include = ["chat_vault*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# Turn deprecation warnings into failures so API drift is caught immediately.
+filterwarnings = ["error::DeprecationWarning"]
 
 [tool.ruff]
 line-length = 100

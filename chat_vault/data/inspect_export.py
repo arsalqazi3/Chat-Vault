@@ -57,9 +57,7 @@ def walk(value, path: str, stats: dict[str, FieldStats], key: str | None = None)
         for item in value:
             walk(item, f"{path}[*]", stats)
     elif isinstance(value, dict):
-        is_mapping = len(value) > MAX_STRUCT_KEYS or not all(
-            IDENTIFIER.match(k) for k in value
-        )
+        is_mapping = len(value) > MAX_STRUCT_KEYS or not all(IDENTIFIER.match(k) for k in value)
         if is_mapping:
             s.types[f"mapping({len(value)} keys hidden)"] += 1
             for item in value.values():

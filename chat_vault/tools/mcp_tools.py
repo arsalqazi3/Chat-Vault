@@ -23,11 +23,13 @@ UNTRUSTED_NOTICE = (
 )
 
 # Every tool: read-only, never destructive, safe to repeat, no outside world.
+# (MCP SDK v2 uses snake_case in Python; on the wire these are the spec's
+# readOnlyHint, destructiveHint, idempotentHint, openWorldHint.)
 READ_ONLY = ToolAnnotations(
-    readOnlyHint=True,
-    destructiveHint=False,
-    idempotentHint=True,
-    openWorldHint=False,
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+    open_world_hint=False,
 )
 
 Source = Literal["claude", "chatgpt"]

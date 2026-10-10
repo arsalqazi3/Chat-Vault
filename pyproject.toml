@@ -1,0 +1,38 @@
+[project]
+name = "chat-vault"
+version = "0.1.0"
+description = "Read-only MCP server for searching your own AI chat history exports."
+readme = "README.md"
+requires-python = ">=3.12"
+# The data layer uses only the standard library; fastmcp is for the MCP server.
+dependencies = ["fastmcp>=4.1,<5"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+chat-vault = "chat_vault.server:main"
+chat-vault-ingest = "chat_vault.data.ingest:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["chat_vault*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, isort, bugbear, bandit (security), pyupgrade
+select = ["E", "F", "I", "B", "S", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# asserts are how pytest works
+"tests/**" = ["S101"]

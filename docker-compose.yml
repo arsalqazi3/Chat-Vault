@@ -1,0 +1,103 @@
+# chat-vault remote mode: the MCP server + a Cloudflare Tunnel.
+#
+#   Internet --HTTPS--> Cloudflare --(outbound-only tunnel)--> cloudflared --> chat-vault:8000
+#
+# No ports are published on the host. cloudflared dials OUT to Cloudflare, so
+# the router needs no port forwarding and the server is invisible to scans.
+#
+# Setup (details in README "Remote mode"):
+#   1. cp .env.example .env            and fill in the non-secret values
+#   2. put the three secrets in ./secrets/ (one value per file, never committed)
+#   3. docker compose up -d
+#
+# Secrets are mounted as files (Docker secrets), so they don't show up in
+# `docker inspect` or the container environment.
+
+name: chat-vault
+
+services:
+  chat-vault:
+    image: arslanasadqazi/chat-vault:${CHAT_VAULT_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      CHAT_VAULT_MODE: http
+      CHAT_VAULT_DB_PATH: /data/chat-vault.db
+      CHAT_VAULT_STATE_DIR: /state
+      CHAT_VAULT_PUBLIC_URL: ${CHAT_VAULT_PUBLIC_URL:?set in .env}
+      CHAT_VAULT_ALLOWED_GITHUB_USER_ID: ${CHAT_VAULT_ALLOWED_GITHUB_USER_ID:?set in .env}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:?set in .env}
+      GITHUB_CLIENT_SECRET_FILE: /run/secrets/github_client_secret
+      CHAT_VAULT_JWT_SIGNING_KEY_FILE: /run/secrets/jwt_signing_key
+      CHAT_VAULT_RATE_LIMIT_PER_MINUTE: ${CHAT_VAULT_RATE_LIMIT_PER_MINUTE:-60}
+      # Every request arrives via cloudflared, so the real client IP is in
+      # CF-Connecting-IP. Safe to trust here because no port is published.
+      CHAT_VAULT_TRUST_CLOUDFLARE_IP_HEADER: "true"
+    secrets:
+      - github_client_secret
+      - jwt_signing_key
+    volumes:
+      # The chat database: read-only. Rebuild it with the ingest command.
+      - ${CHAT_VAULT_DATA_DIR:?set in .env}:/data:ro
+      # Encrypted OAuth state (client registrations, tokens). Survives restarts.
+      - chat-vault-state:/state
+    expose:
+      - "8000" # reachable by cloudflared on the internal network only
+    # Hardening: nothing on the root filesystem is writable, no Linux
+    # capabilities, no privilege escalation, bounded memory and processes.
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    pids_limit: 128
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/health', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks: [tunnel]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+  cloudflared:
+    # Pinned by digest (multi-arch: amd64 + arm64). Dependabot proposes updates.
+    image: cloudflare/cloudflared:2026.10.0@sha256:9b49eed8f62806d5d45ddf59ecefb5710429598ea6d3fcccd2af938f621b2b07
+    restart: unless-stopped
+    # Remotely managed tunnel: the public hostname -> http://chat-vault:8000
+    # route is configured in the Cloudflare dashboard.
+    command: ["tunnel", "--no-autoupdate", "run", "--token-file", "/run/secrets/tunnel_token"]
+    secrets:
+      - tunnel_token
+    depends_on:
+      chat-vault:
+        condition: service_healthy
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    pids_limit: 64
+    networks: [tunnel]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+secrets:
+  github_client_secret:
+    file: ./secrets/github_client_secret
+  jwt_signing_key:
+    file: ./secrets/jwt_signing_key
+  tunnel_token:
+    file: ./secrets/tunnel_token
+
+volumes:
+  chat-vault-state:
+
+networks:
+  tunnel: {}

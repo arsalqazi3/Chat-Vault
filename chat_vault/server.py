@@ -2,14 +2,17 @@
 
     CHAT_VAULT_DB_PATH=/data/chat-vault.db python -m chat_vault.server
 
-Transport layer only: tools come from chat_vault.tools, auth (HTTP mode only)
-will come from chat_vault.auth in Phase 4.
+stdio (default): local use, e.g. the Claude desktop app. No auth: the client
+                 launches the process itself.
+http:            remote use (claude.ai, ChatGPT). OAuth via chat_vault.auth is
+                 mandatory; there is no way to run HTTP mode without it.
 """
 
 import logging
 import sys
 
 from fastmcp import FastMCP
+from fastmcp.server.auth import AuthProvider
 
 from chat_vault.config import Settings, load_settings
 from chat_vault.tools.mcp_tools import register_tools
@@ -22,11 +25,11 @@ INSTRUCTIONS = (
 )
 
 
-def build_server(settings: Settings) -> FastMCP:
+def build_server(settings: Settings, auth: AuthProvider | None = None) -> FastMCP:
     # Fail at startup (not on the first tool call) if the database is missing.
     if not settings.db_path.is_file():
         raise FileNotFoundError(f"Database not found at {settings.db_path}. Run ingest first.")
-    mcp = FastMCP(name="chat-vault", instructions=INSTRUCTIONS)
+    mcp = FastMCP(name="chat-vault", instructions=INSTRUCTIONS, auth=auth)
     register_tools(mcp, VaultReader(settings.db_path))
     return mcp
 
@@ -36,15 +39,24 @@ def main() -> None:
     logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(levelname)s %(message)s")
     try:
         settings = load_settings()
-        mcp = build_server(settings)
-    except (RuntimeError, FileNotFoundError) as exc:
+        if settings.mode == "stdio":
+            build_server(settings).run(transport="stdio", show_banner=False)
+            return
+
+        # HTTP mode: imported here so stdio mode never loads the web stack.
+        from chat_vault.auth import ChatVaultAuth
+        from chat_vault.http_server import configure_json_logging, run_http
+
+        # Before building auth, so even startup warnings are structured and redacted.
+        configure_json_logging()
+
+        if settings.http is None:  # load_settings always fills this in HTTP mode
+            raise RuntimeError("HTTP settings missing")
+        mcp = build_server(settings, auth=ChatVaultAuth(settings.http))
+    except (RuntimeError, OSError) as exc:  # OSError includes FileNotFoundError
         # Configuration problems: one clear line on stderr, no traceback.
         sys.exit(f"chat-vault: {exc}")
-
-    if settings.mode == "stdio":
-        mcp.run(transport="stdio", show_banner=False)
-    else:
-        raise SystemExit("HTTP mode is not available yet (Phase 4).")
+    run_http(mcp, settings.http)
 
 
 if __name__ == "__main__":

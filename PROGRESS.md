@@ -8,8 +8,8 @@ Living status file. Updated at the end of every phase so work can resume in a ne
 |---|-------|--------|
 | 1 | Data layer (parsers, ingest, SQLite + FTS5) | **Nearly done**: only the Claude parser is left, waiting on the real export |
 | 2 | Tools + local stdio mode | **Done** (2026-10-10) |
-| 3 | Docker + CI | **Done locally**, awaiting a first CI run + review (2026-10-10) |
-| 4 | Remote mode (streamable HTTP + OAuth) | Not started |
+| 3 | Docker + CI | **Done**: CI green on GitHub (2026-10-11) |
+| 4 | Remote mode (streamable HTTP + OAuth) | **Done locally**, awaiting review + CI (2026-10-11) |
 | 5 | ChatGPT export parser (optional, ask first) | Not started |
 | 6 | Go live on the Mac mini server | Not started |
 
@@ -32,7 +32,7 @@ Left:
 Done:
 - `chat_vault/tools/queries.py`: `VaultReader` with `search_chats`, `read_chat`, `list_chats`. One read-only connection per call. User text is reduced to quoted words before FTS (no FTS/SQL syntax gets through). Limits are clamped to 50; `read_chat` pages also have a 20k-char budget (oversized messages are cut and flagged `truncated`).
 - `chat_vault/tools/mcp_tools.py`: the three MCP tools. Annotations: readOnly, not destructive, idempotent, closed-world. Pydantic validates arguments. The untrusted-data notice is in every description and every result.
-- `chat_vault/server.py`: builds the server, refuses to start without a DB, stdio transport, logs to stderr only. HTTP mode exits with "Phase 4".
+- `chat_vault/server.py`: builds the server, refuses to start without a DB, stdio transport, logs to stderr only. (HTTP mode added in Phase 4.)
 - README: architecture, tools, security model, Claude desktop config (Docker with `--network none`, `--read-only`, `:ro` mount, `--cap-drop ALL`; plus a non-Docker dev variant).
 - MIT LICENSE.
 - Tests: 41 passing (`test_ingest`, `test_inspect_export`, `test_queries`, `test_mcp_tools`), including hostile FTS inputs, an in-memory MCP client, and a real stdio subprocess. ruff check + format clean. DeprecationWarnings are treated as test failures.
@@ -57,8 +57,32 @@ Verified locally on 2026-10-11 (Docker Desktop 29.5.3):
 - [x] arm64 build + stdio smoke test under QEMU emulation (`platform.machine()` = aarch64). The first attempt failed on a dropped connection, so the Dockerfile now sets `PIP_DEFAULT_TIMEOUT=60` and `PIP_RETRIES=10`. amd64 was rebuilt and re-tested after that change.
 
 Not yet verified (needs GitHub, user runs):
-- [ ] First CI run on GitHub (all jobs green).
+- [x] First CI run on GitHub: all jobs green (2026-10-11).
 - [ ] Docker Hub secrets set; first tagged release publishes both architectures.
+
+## Phase 4: remote mode (HTTP + OAuth)
+Done:
+- `chat_vault/config.py`: HTTP settings from env, validated at startup. HTTPS-only public origin (http for localhost only), numeric GitHub user id, signing key of 32+ chars, exact https redirect URIs, `NAME_FILE` support for secrets, secrets hidden from `repr`.
+- `chat_vault/auth.py`: `ChatVaultAuth`, a thin subclass of FastMCP's `OAuthProxy` pointed at GitHub. It adds:
+  - `GitHubUserVerifier`: on every request, asks GitHub `GET /user` and accepts only the allowed numeric id (120 s positive cache).
+  - The same check at login (`_extract_upstream_claims` hook): a stranger gets `invalid_grant` and no token.
+  - A redirect allowlist: claude.ai + ChatGPT callbacks only. Claude Code loopback redirects are deliberately not allowed.
+  - `offline_access` listed in the AS metadata only (not the PRM) and stripped before reaching GitHub.
+  - Consent screen always on; 1-hour access tokens; refresh tokens rotated by FastMCP.
+  - Encrypted (Fernet) file store in `CHAT_VAULT_STATE_DIR`, key derived from the signing key with its own salt.
+- `chat_vault/http_server.py`: `/mcp` + `/health` (`{"status":"ok"}` only) + FastMCP's OAuth routes. Middleware: per-IP token-bucket rate limit (health exempt, LRU-bounded), security headers (nosniff, DENY framing, no-referrer, HSTS), and a JSON access log (method, path, status, ms, IP; never query/headers/body). Uvicorn's access log is off (it would log OAuth codes). The JSON formatter masks string args from library loggers and redacts token/code patterns.
+- `docker-compose.yml`: chat-vault + cloudflared (2026.10.0, digest-pinned). No published ports, read-only, cap_drop ALL, no-new-privileges, mem/pids limits, healthcheck, `restart: unless-stopped`, secrets as files, state in a named volume, log rotation.
+- `.env.example` (no secrets); `secrets/` gitignored and dockerignored. Dockerfile gets `/state` (uid 10001, 700) + `EXPOSE 8000`. Dependabot watches the compose file.
+- CI: new HTTP-mode smoke step (health OK, `/mcp` without token is 401).
+- Tests: 82 passing. `test_http_auth.py` runs the full OAuth flow against a fake GitHub: metadata, 401 + resource_metadata, valid token works, wrong GitHub user gets no token, expired token, forged/garbage token, wrong-audience token, revoked-on-GitHub token, refresh rotation + replay rejected, redirect allowlist (5 hostile URIs), health, headers, rate limit, no secrets or chat content in logs. `test_config.py` covers HTTP config validation.
+
+Verified locally on 2026-10-11:
+- [x] Real image in HTTP mode (read-only, cap-drop ALL, state volume): health, 401 + `WWW-Authenticate`, PRM `resource` exact, every log line JSON, 0 leaks of planted code/state/token/secret.
+- [x] `docker compose config` validates; neither service publishes ports; a missing `.env` value fails loudly.
+- [x] The new CI HTTP smoke step, run locally against the image.
+
+Not verifiable until Phase 6 (needs real GitHub App, domain, tunnel):
+- [ ] Real GitHub login; adding the connector in claude.ai and ChatGPT; CIMD with Claude's real metadata document.
 
 ## Decisions
 - **Standalone FastMCP, pinned `>=4.1,<5`** (4.1.0 installed 2026-10-10). It uses MCP SDK v2: `ToolAnnotations` fields are snake_case in Python (`read_only_hint`) and camelCase on the wire.
@@ -76,14 +100,19 @@ Not yet verified (needs GitHub, user runs):
 - Lockfiles via `uv pip compile` because pip cannot resolve Linux-only markers from Windows. Named `requirements*.txt` so Dependabot recognises them.
 - The image does not pip-install our package; the code is copied to `/app` and put on `PYTHONPATH`, so every installed byte is hash-verified.
 - DB file ownership: ingest inside the container so the DB belongs to uid 10001 (mode 600). On Linux hosts, `chown 10001:10001` the data dir first.
+- **GitHub App, not a classic OAuth App**: only Apps issue expiring user tokens + refresh tokens, which refresh rotation needs. The app needs no permissions; it only calls `GET /user`.
+- Library-chosen behaviour kept: FastMCP returns **401** (not 400) with `invalid_grant` for refused or replayed grants, citing the MCP spec. The error code is still RFC 6749's `invalid_grant`, which Claude's docs ask for.
+- Vendor facts (checked 2026-10-11):
+  - Claude: callback `https://claude.ai/api/mcp/auth_callback` (web, desktop, mobile). Picks CIMD only if the AS advertises `client_id_metadata_document_supported` + `none` auth, else DCR. Appends `offline_access` if the AS lists it. Requires refresh rotation and form-urlencoded `/token`. Uses only the first `authorization_servers` entry. Egress `160.79.104.0/21`.
+  - ChatGPT: stable callback `https://chatgpt.com/connector_platform_oauth_redirect` (needs RFC 9207 `iss` support, which we have; otherwise it uses per-connector `/connector/oauth/{id}` URLs, so copy the exact URI from its UI and use `CHAT_VAULT_ALLOWED_REDIRECT_URIS` if it differs). Prefers CIMD, supports DCR. S256 required. Egress ranges at developers.openai.com/api/docs/guides/ip-addresses (fetch in Phase 6).
 
 ## Incidents
 - 2026-10-10: the `.gitignore` rule `data/` also matched the `chat_vault/data/` package, so the first pushed commit (458fbbf) left out the data layer, and ruff silently skipped it. Fixed with `/data/` (root only). Verified that real exports and DBs under `/data/` are still ignored. Nothing sensitive was ever committed.
 
 ## Open items / to verify
-- [ ] FastMCP docs: `GitHubProvider` / `OAuthProxy` in 4.x, CIMD support, refresh-token rotation, redirect-URI allowlist. (Inspect the installed source too.)
-- [ ] OpenAI docs: current ChatGPT connector OAuth redirect URI(s) and CIMD/DCR support.
-- [ ] Anthropic docs: claude.ai connector auth details (callback `https://claude.ai/api/mcp/auth_callback`), egress IP ranges.
+- [x] FastMCP 4.1 OAuthProxy / GitHubProvider read from installed source (2026-10-11).
+- [x] OpenAI + Anthropic connector auth docs checked (2026-10-11); facts under Decisions.
+- [ ] Phase 6: fetch OpenAI's published egress IP list for the WAF rule.
 - [ ] README Docker config for Claude desktop not yet tried end-to-end with the app itself.
 
 ## How to run (dev)

@@ -111,6 +111,27 @@ jobs:
           python scripts/smoke_test_image.py chat-vault:ci
       - name: Image must not run as root
         run: test "$(docker image inspect chat-vault:ci --format '{{.Config.User}}')" = "10001:10001"
+      - name: HTTP mode smoke test (health OK, MCP without token is 401)
+        run: |
+          mkdir -p smoke/data smoke/secrets
+          python -c "from pathlib import Path; from tests.helpers import build_sample_vault; build_sample_vault(Path('smoke/data/chat-vault.db'))"
+          # Throwaway values generated for this run only.
+          python -c "import secrets; print(secrets.token_urlsafe(48))" > smoke/secrets/jwt_signing_key
+          python -c "import secrets; print(secrets.token_urlsafe(32))" > smoke/secrets/github_client_secret
+          chmod -R a+rX smoke
+          docker run -d --name http-smoke --read-only --tmpfs /tmp --cap-drop ALL \
+            --security-opt no-new-privileges -p 127.0.0.1:8000:8000 \
+            -v "$PWD/smoke/data:/data:ro" -v "$PWD/smoke/secrets:/run/secrets:ro" \
+            -e CHAT_VAULT_MODE=http -e CHAT_VAULT_PUBLIC_URL=http://localhost:8000 \
+            -e CHAT_VAULT_ALLOWED_GITHUB_USER_ID=1 -e GITHUB_CLIENT_ID=ci \
+            -e GITHUB_CLIENT_SECRET_FILE=/run/secrets/github_client_secret \
+            -e CHAT_VAULT_JWT_SIGNING_KEY_FILE=/run/secrets/jwt_signing_key \
+            --tmpfs /state:uid=10001,gid=10001 chat-vault:ci
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8000/health && break; sleep 1; done
+          test "$(curl -s http://127.0.0.1:8000/health)" = '{"status":"ok"}'
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8000/mcp)" = "401"
+          docker logs http-smoke
+          docker rm -f http-smoke
 
   publish:
     name: publish multi-arch image

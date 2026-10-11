@@ -24,10 +24,13 @@ RUN /opt/venv/bin/pip install --require-hashes --only-binary=:all: -r /tmp/requi
 FROM ${PYTHON_IMAGE}
 
 # Remove the base image's pip (not needed at runtime) and add an unprivileged user.
+# /state holds encrypted OAuth state in HTTP mode; a fresh Docker volume mounted
+# there inherits this ownership, so the app user can write to it.
 RUN python -m pip uninstall --yes pip \
  && groupadd --system --gid 10001 chatvault \
  && useradd --system --uid 10001 --gid 10001 --no-create-home \
-      --home-dir /nonexistent --shell /usr/sbin/nologin chatvault
+      --home-dir /nonexistent --shell /usr/sbin/nologin chatvault \
+ && mkdir -m 700 /state && chown 10001:10001 /state
 
 COPY --from=build /opt/venv /opt/venv
 # Application code is owned by root and therefore not writable by the app user.
@@ -39,6 +42,9 @@ ENV PATH=/opt/venv/bin:$PATH \
     PYTHONUNBUFFERED=1 \
     CHAT_VAULT_MODE=stdio \
     CHAT_VAULT_DB_PATH=/data/chat-vault.db
+
+# HTTP mode listens here (documentation only; nothing is published by default).
+EXPOSE 8000
 
 # Numeric UID so "must run as non-root" checks can verify it.
 USER 10001:10001

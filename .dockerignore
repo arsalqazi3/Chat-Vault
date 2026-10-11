@@ -13,6 +13,7 @@
 **/*.sqlite*
 **/.env
 **/.env.*
+**/secrets
 **/conversations.json
 **/*.zip
 data/

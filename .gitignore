@@ -18,6 +18,7 @@ memories.json
 .env
 .env.*
 !.env.example
+secrets/
 
 # --- Python ---
 __pycache__/

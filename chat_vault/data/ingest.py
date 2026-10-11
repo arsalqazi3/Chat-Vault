@@ -15,6 +15,7 @@ Usage:
 import argparse
 import logging
 import sqlite3
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -97,14 +98,21 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    settings = load_settings()
-    conn = connect_for_ingest(settings.db_path)
     try:
-        # Only counts are logged, never chat content.
-        count = ingest(conn, get_parser(args.source), args.export)
-        log.info("Imported %d chats from source %r", count, args.source)
-    finally:
-        conn.close()
+        settings = load_settings()
+        export_parser = get_parser(args.source)
+        if not args.export.is_dir():
+            raise ValueError(f"Export folder not found: {args.export}")
+        conn = connect_for_ingest(settings.db_path)
+        try:
+            # Only counts are logged, never chat content.
+            count = ingest(conn, export_parser, args.export)
+        finally:
+            conn.close()
+    except (RuntimeError, ValueError) as exc:
+        # Parsers raise ValueError with format problems only, never chat content.
+        sys.exit(f"chat-vault-ingest: {exc}")
+    log.info("Imported %d chats from source %r", count, args.source)
 
 
 if __name__ == "__main__":

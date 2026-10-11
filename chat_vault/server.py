@@ -34,8 +34,12 @@ def build_server(settings: Settings) -> FastMCP:
 def main() -> None:
     # In stdio mode stdout carries the MCP protocol, so logs MUST go to stderr.
     logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(levelname)s %(message)s")
-    settings = load_settings()
-    mcp = build_server(settings)
+    try:
+        settings = load_settings()
+        mcp = build_server(settings)
+    except (RuntimeError, FileNotFoundError) as exc:
+        # Configuration problems: one clear line on stderr, no traceback.
+        sys.exit(f"chat-vault: {exc}")
 
     if settings.mode == "stdio":
         mcp.run(transport="stdio", show_banner=False)

@@ -1,0 +1,16 @@
+# Weekly update PRs for everything we pin: actions (by SHA), the Python
+# lockfiles, and the Docker base image digest. CI re-runs all scans on each PR.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly

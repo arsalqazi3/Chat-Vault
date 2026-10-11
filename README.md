@@ -63,10 +63,33 @@ chat-vault-ingest --source claude --export data/raw/claude
 # Re-run the same command with a newer export at any time: it replaces the old data.
 ```
 
-## Use with the Claude desktop app (Docker, stdio)
+## Docker
 
-The Docker image arrives in Phase 3. Once it's published, build the database once, then
-add this to `claude_desktop_config.json` (Claude desktop → Settings → Developer → Edit Config).
+One image (`arslanasadqazi/chat-vault`, linux/amd64 + linux/arm64) does everything; only the
+command and environment change. It runs as an unprivileged user (uid 10001), has no pip, and
+is built from a hash-pinned lockfile on a digest-pinned base image.
+
+### 1. Build the database with the image
+
+```bash
+docker run --rm --read-only --network none --cap-drop ALL --security-opt no-new-privileges \
+  -v /ABSOLUTE/PATH/TO/export:/export:ro \
+  -v /ABSOLUTE/PATH/TO/chat-vault-data:/data \
+  arslanasadqazi/chat-vault:latest \
+  python -m chat_vault.data.ingest --source claude --export /export
+```
+
+The export is mounted read-only; only the data folder is writable, and only for this one
+command. The database is created with owner-only permissions for the container user.
+On a **Linux** host, first give that user the data folder:
+`sudo chown 10001:10001 /ABSOLUTE/PATH/TO/chat-vault-data`
+(Docker Desktop on macOS/Windows handles this for you).
+
+Re-run it whenever you have a newer export; it replaces the old data.
+
+### 2. Use with the Claude desktop app (stdio)
+
+Add this to `claude_desktop_config.json` (Claude desktop → Settings → Developer → Edit Config).
 Replace `/ABSOLUTE/PATH/TO/chat-vault-data` with the folder that contains `chat-vault.db`
 (on Windows, e.g. `C:/Users/you/chat-vault-data`).
 
@@ -126,7 +149,31 @@ On Windows the command is `C:/path/to/chat-vault/.venv/Scripts/chat-vault.exe`.
 pytest            # tests (synthetic data only)
 ruff check .      # lint, including security rules
 ruff format .     # format
+
+# Build and smoke-test the image locally
+docker build -t chat-vault:dev .
+python scripts/smoke_test_image.py chat-vault:dev
 ```
+
+Dependencies are pinned with hashes in `requirements.txt` (runtime) and
+`requirements-dev.txt` (adds test tools). After changing `pyproject.toml`, regenerate them
+with the `uv pip compile ...` command at the top of each file.
+
+## CI/CD
+
+GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push and PR:
+
+| Job | What it checks |
+|-----|----------------|
+| lint + tests | ruff (incl. security rules), pytest |
+| secret scan | gitleaks over the full git history |
+| dependency audit | pip-audit against the hash-pinned lockfile |
+| image | build, Trivy scan (fails on fixable HIGH/CRITICAL), stdio smoke test with hardened flags, non-root check |
+| publish | on `v*.*.*` tags only: multi-arch build and push to Docker Hub with SBOM + provenance |
+
+All actions are pinned to commit SHAs. Docker Hub credentials come only from the repository
+secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`. Dependabot proposes weekly updates
+for actions, Python packages and the base image.
 
 ## License
 

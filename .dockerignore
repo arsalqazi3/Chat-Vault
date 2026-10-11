@@ -1,0 +1,18 @@
+# Allow-list: ignore everything, then add back only what the image needs.
+# This way new files (exports, databases, secrets) can never slip into the
+# build context by accident.
+*
+!requirements.txt
+!chat_vault/
+
+# Belt and braces: even inside allowed paths, never send these.
+**/__pycache__
+**/*.py[cod]
+**/*.db
+**/*.db-*
+**/*.sqlite*
+**/.env
+**/.env.*
+**/conversations.json
+**/*.zip
+data/

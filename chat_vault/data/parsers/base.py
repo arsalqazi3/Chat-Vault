@@ -15,7 +15,8 @@ class ExportParser(ABC):
     def parse(self, export_path: Path) -> Iterator[ParsedChat]:
         """Yield every chat in the export.
 
-        `export_path` is the unzipped export folder. Parsers must only read
+        `export_path` is the export .zip or its unzipped folder (read it with
+        `export_files.iter_json`, which handles both). Parsers must only read
         from it, never modify it, and must raise ValueError with a clear
         message (but no chat content) if the format is not what they expect.
         """

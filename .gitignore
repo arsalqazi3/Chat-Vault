@@ -9,10 +9,13 @@
 *.sqlite3
 # Raw exports (in case one is dropped outside data/ by mistake)
 conversations.json
+conversations-*.json
 users.json
 projects.json
 memories.json
 *.zip
+# ...except the SYNTHETIC test fixtures, which copy the export format.
+!tests/fixtures/**/conversations.json
 
 # --- Secrets ---
 .env

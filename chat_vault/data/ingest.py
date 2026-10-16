@@ -8,19 +8,26 @@ single transaction:
     data is left untouched.
 
 Usage:
-    python -m chat_vault.data.ingest --source claude --export data/raw/claude
+    python -m chat_vault.data.ingest --source claude --export data/raw/claude-export.zip
 (the database path comes from CHAT_VAULT_DB_PATH)
+
+    python -m chat_vault.data.ingest --source chatgpt --export export.zip --dry-run
+parses the export and prints COUNTS ONLY (no database, no content): a safe way
+to check a parser against a real export.
 """
 
 import argparse
 import logging
 import sqlite3
 import sys
+from collections import Counter
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 
 from chat_vault.config import load_settings
 from chat_vault.data.db import connect_for_ingest
+from chat_vault.data.models import ParsedChat
 from chat_vault.data.parsers import get_parser
 from chat_vault.data.parsers.base import ExportParser
 
@@ -91,18 +98,51 @@ def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
+def summarize(chats: Iterable[ParsedChat]) -> dict[str, object]:
+    """Counts and date range only. Safe to print: contains no chat content."""
+    chats_n = empty = 0
+    senders: Counter[str] = Counter()
+    dates: list[str] = []
+    longest = 0
+    for chat in chats:
+        chats_n += 1
+        empty += not chat.messages
+        if chat.created_at:
+            dates.append(chat.created_at)
+        for m in chat.messages:
+            senders[m.sender] += 1
+            longest = max(longest, len(m.text))
+    return {
+        "chats": chats_n,
+        "chats_without_messages": empty,
+        "messages_by_sender": dict(senders),
+        "first_chat": min(dates) if dates else None,
+        "last_chat": max(dates) if dates else None,
+        "longest_message_chars": longest,
+    }
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Import a chat export into chat-vault.")
-    parser.add_argument("--source", required=True, help="export type, e.g. 'claude'")
-    parser.add_argument("--export", required=True, type=Path, help="unzipped export folder")
+    parser.add_argument("--source", required=True, help="export type: claude or chatgpt")
+    parser.add_argument(
+        "--export", required=True, type=Path, help="the export .zip, or its unzipped folder"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="parse only and print counts; write nothing"
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     try:
-        settings = load_settings()
         export_parser = get_parser(args.source)
-        if not args.export.is_dir():
-            raise ValueError(f"Export folder not found: {args.export}")
+        if not args.export.exists():
+            raise ValueError(f"Export not found: {args.export}")
+        if args.dry_run:
+            for key, value in summarize(export_parser.parse(args.export)).items():
+                print(f"{key}: {value}")
+            return
+        settings = load_settings()
         conn = connect_for_ingest(settings.db_path)
         try:
             # Only counts are logged, never chat content.

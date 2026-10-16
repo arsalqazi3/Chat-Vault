@@ -1,13 +1,18 @@
 """Export parsers, looked up by source name.
 
-To add a new source (e.g. ChatGPT): write a class implementing ExportParser in
-its own module and add one line to PARSERS below. Nothing else changes.
+To add a new source: write a class implementing ExportParser in its own
+module and add one line to PARSERS below. Nothing else changes.
 """
 
 from chat_vault.data.parsers.base import ExportParser
+from chat_vault.data.parsers.chatgpt import ChatGPTParser
+from chat_vault.data.parsers.claude import ClaudeParser
 
-# source name -> parser class. Populated as parsers are implemented.
-PARSERS: dict[str, type[ExportParser]] = {}
+# source name -> parser class
+PARSERS: dict[str, type[ExportParser]] = {
+    "claude": ClaudeParser,
+    "chatgpt": ChatGPTParser,
+}
 
 
 def get_parser(source: str) -> ExportParser:

@@ -38,3 +38,26 @@ def test_inspector_never_prints_values(tmp_path: Path, capsys) -> None:
     assert "$[*].chat_messages[*].text" in out
     assert "human(1)" in out
     assert "mapping(1 keys hidden)" in out
+
+
+def test_uuid_keys_starting_with_a_letter_are_hidden(tmp_path: Path, capsys) -> None:
+    # ChatGPT's message tree is keyed by ids; some start with a letter.
+    export = [{"mapping": {"aaa1b2c3-d4e5-4f60-8a7b-123456789abc": {"parent": None}}}]
+    (tmp_path / "conversations.json").write_text(json.dumps(export), encoding="utf-8")
+    main([str(tmp_path)])
+    out = capsys.readouterr().out
+    assert "aaa1b2c3" not in out
+    assert "$[*].mapping{*}.parent" in out
+
+
+def test_inspector_reads_zip(tmp_path: Path, capsys) -> None:
+    import zipfile
+
+    archive = tmp_path / "export.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("conversations.json", json.dumps([{"name": PRIVATE_TEXT}]))
+    main([str(archive)])
+    out = capsys.readouterr().out
+    assert "Export zip contains 1 file(s)" in out
+    assert "$[*].name: string x1" in out
+    assert "my-bank-pin" not in out

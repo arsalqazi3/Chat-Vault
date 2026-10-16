@@ -1,0 +1,131 @@
+[
+  {
+    "title": "Bread recipes",
+    "create_time": 1735030800.123,
+    "update_time": 1735031100.5,
+    "conversation_id": "g0000000-0000-4000-8000-000000000001",
+    "id": "g0000000-0000-4000-8000-000000000001",
+    "current_node": "n-g1-asst-regen",
+    "mapping": {
+      "client-created-root": {"id": "client-created-root", "message": null, "parent": null,
+                              "children": ["n-g1-system"]},
+      "n-g1-system": {
+        "id": "n-g1-system", "parent": "client-created-root", "children": ["n-g1-custom"],
+        "message": {"id": "n-g1-system", "author": {"role": "system", "name": null, "metadata": {}},
+                    "create_time": null, "content": {"content_type": "text", "parts": ["SYSTEM-PROMPT-SHOULD-NOT-APPEAR"]},
+                    "metadata": {"is_visually_hidden_from_conversation": true}, "recipient": "all"}
+      },
+      "n-g1-custom": {
+        "id": "n-g1-custom", "parent": "n-g1-system", "children": ["n-g1-user"],
+        "message": {"id": "n-g1-custom", "author": {"role": "user"}, "create_time": null,
+                    "content": {"content_type": "user_editable_context",
+                                "user_profile": "CUSTOM-INSTRUCTIONS-SHOULD-NOT-APPEAR", "user_instructions": ""},
+                    "metadata": {"is_visually_hidden_from_conversation": true}}
+      },
+      "n-g1-user": {
+        "id": "n-g1-user", "parent": "n-g1-custom", "children": ["n-g1-asst-first", "n-g1-asst-regen"],
+        "message": {"id": "n-g1-user", "author": {"role": "user", "name": null, "metadata": {}},
+                    "create_time": 1735030800.5,
+                    "content": {"content_type": "text", "parts": ["Give me a sourdough bread recipe"]},
+                    "metadata": {}, "recipient": "all"}
+      },
+      "n-g1-asst-first": {
+        "id": "n-g1-asst-first", "parent": "n-g1-user", "children": [],
+        "message": {"id": "n-g1-asst-first", "author": {"role": "assistant"}, "create_time": 1735030810.0,
+                    "content": {"content_type": "text", "parts": ["REGENERATED-AWAY: first draft of the recipe."]},
+                    "metadata": {}}
+      },
+      "n-g1-asst-regen": {
+        "id": "n-g1-asst-regen", "parent": "n-g1-user", "children": [],
+        "message": {"id": "n-g1-asst-regen", "author": {"role": "assistant"}, "create_time": 1735030900.0,
+                    "content": {"content_type": "text", "parts": ["Mix flour, water, salt and starter."]},
+                    "metadata": {}}
+      }
+    }
+  },
+  {
+    "title": "Photo of my garden",
+    "create_time": 1740000000,
+    "update_time": 1740000300,
+    "id": "g0000000-0000-4000-8000-000000000002",
+    "current_node": "n-g2-asst",
+    "mapping": {
+      "n-g2-root": {"id": "n-g2-root", "message": null, "parent": null, "children": ["n-g2-user"]},
+      "n-g2-user": {
+        "id": "n-g2-user", "parent": "n-g2-root", "children": ["n-g2-thoughts"],
+        "message": {"id": "n-g2-user", "author": {"role": "user"}, "create_time": 1740000000,
+                    "content": {"content_type": "multimodal_text",
+                                "parts": [{"content_type": "image_asset_pointer", "asset_pointer": "file-service://file-x",
+                                           "size_bytes": 1000, "width": 10, "height": 10},
+                                          "What is wrong with these tomato leaves?"]},
+                    "metadata": {}}
+      },
+      "n-g2-thoughts": {
+        "id": "n-g2-thoughts", "parent": "n-g2-user", "children": ["n-g2-tool"],
+        "message": {"id": "n-g2-thoughts", "author": {"role": "assistant"}, "create_time": 1740000010,
+                    "content": {"content_type": "thoughts", "thoughts": [{"summary": "x", "content": "THOUGHTS-SHOULD-NOT-APPEAR"}]},
+                    "metadata": {}}
+      },
+      "n-g2-tool": {
+        "id": "n-g2-tool", "parent": "n-g2-thoughts", "children": ["n-g2-code"],
+        "message": {"id": "n-g2-tool", "author": {"role": "tool", "name": "web.run"}, "create_time": 1740000020,
+                    "content": {"content_type": "text", "parts": ["TOOL-OUTPUT-SHOULD-NOT-APPEAR"]},
+                    "metadata": {}}
+      },
+      "n-g2-code": {
+        "id": "n-g2-code", "parent": "n-g2-tool", "children": ["n-g2-asst"],
+        "message": {"id": "n-g2-code", "author": {"role": "assistant"}, "create_time": 1740000030,
+                    "content": {"content_type": "code", "language": "python", "text": "CODE-SHOULD-NOT-APPEAR"},
+                    "metadata": {}, "recipient": "python"}
+      },
+      "n-g2-asst": {
+        "id": "n-g2-asst", "parent": "n-g2-code", "children": [],
+        "message": {"id": "n-g2-asst", "author": {"role": "assistant"}, "create_time": 1740000040,
+                    "content": {"content_type": "text", "parts": ["Looks like early blight. Remove the lower leaves."]},
+                    "metadata": {}}
+      }
+    }
+  },
+  {
+    "title": null,
+    "create_time": 1700000000,
+    "update_time": null,
+    "id": "g0000000-0000-4000-8000-000000000003",
+    "mapping": {
+      "n-g3-root": {"id": "n-g3-root", "message": null, "parent": null, "children": ["n-g3-user-old", "n-g3-user-edit"]},
+      "n-g3-user-old": {
+        "id": "n-g3-user-old", "parent": "n-g3-root", "children": [],
+        "message": {"id": "n-g3-user-old", "author": {"role": "user"}, "create_time": 1700000000,
+                    "content": {"content_type": "text", "parts": ["EDITED-AWAY: original question"]}, "metadata": {}}
+      },
+      "n-g3-user-edit": {
+        "id": "n-g3-user-edit", "parent": "n-g3-root", "children": ["n-g3-asst"],
+        "message": {"id": "n-g3-user-edit", "author": {"role": "user"}, "create_time": 1700000060,
+                    "content": {"content_type": "text", "parts": ["No current_node in this one: what is a monad?"]},
+                    "metadata": {}}
+      },
+      "n-g3-asst": {
+        "id": "n-g3-asst", "parent": "n-g3-user-edit", "children": [],
+        "message": {"id": "n-g3-asst", "author": {"role": "assistant"}, "create_time": 1700000070,
+                    "content": {"content_type": "text", "parts": ["A monad is a way to chain computations."]},
+                    "metadata": {}}
+      }
+    }
+  },
+  {
+    "title": "MALFORMED: mapping is not an object",
+    "id": "g0000000-0000-4000-8000-000000000004",
+    "mapping": ["not", "a", "dict"]
+  },
+  {
+    "title": "Cycle in parent links (corrupt export) must not hang",
+    "id": "g0000000-0000-4000-8000-000000000005",
+    "current_node": "n-g5-b",
+    "mapping": {
+      "n-g5-a": {"id": "n-g5-a", "parent": "n-g5-b", "children": ["n-g5-b"],
+                 "message": {"author": {"role": "user"}, "content": {"content_type": "text", "parts": ["loop a"]}}},
+      "n-g5-b": {"id": "n-g5-b", "parent": "n-g5-a", "children": ["n-g5-a"],
+                 "message": {"author": {"role": "assistant"}, "content": {"content_type": "text", "parts": ["loop b"]}}}
+    }
+  }
+]

@@ -1,0 +1,89 @@
+[
+  {
+    "uuid": "c0000000-0000-4000-8000-000000000001",
+    "name": "Sourdough starter troubleshooting",
+    "summary": "",
+    "created_at": "2025-03-10T09:00:00.123456Z",
+    "updated_at": "2025-03-10T09:05:00.000000Z",
+    "account": {"uuid": "a0000000-0000-4000-8000-000000000000"},
+    "chat_messages": [
+      {
+        "uuid": "m0000000-0000-4000-8000-000000000101",
+        "text": "My sourdough starter smells like acetone. Is it dead?",
+        "content": [
+          {"start_timestamp": "2025-03-10T09:00:00Z", "stop_timestamp": "2025-03-10T09:00:00Z",
+           "type": "text", "text": "My sourdough starter smells like acetone. Is it dead?", "citations": []}
+        ],
+        "sender": "human",
+        "created_at": "2025-03-10T09:00:00.123456Z",
+        "updated_at": "2025-03-10T09:00:00.123456Z",
+        "attachments": [
+          {"file_name": "feeding-log.txt", "file_size": 64, "file_type": "txt",
+           "extracted_content": "Day 1: 50g flour, 50g water. Day 2: skipped feeding."}
+        ],
+        "files": []
+      },
+      {
+        "uuid": "m0000000-0000-4000-8000-000000000102",
+        "text": "",
+        "content": [
+          {"type": "thinking", "thinking": "INTERNAL-REASONING-SHOULD-NOT-APPEAR"},
+          {"type": "text", "text": "It is not dead, just hungry.", "citations": []},
+          {"type": "tool_use", "name": "web_search", "input": {"query": "TOOL-INPUT-SHOULD-NOT-APPEAR"}},
+          {"type": "tool_result", "name": "web_search", "content": [{"type": "text", "text": "TOOL-RESULT-SHOULD-NOT-APPEAR"}]},
+          {"type": "text", "text": "Feed it twice a day for a few days.", "citations": []}
+        ],
+        "sender": "assistant",
+        "created_at": "2025-03-10T09:00:30.000000Z",
+        "updated_at": "2025-03-10T09:00:30.000000Z",
+        "attachments": [],
+        "files": [{"file_name": "starter-photo.jpg"}]
+      }
+    ]
+  },
+  {
+    "uuid": "c0000000-0000-4000-8000-000000000002",
+    "name": "",
+    "created_at": "2024-11-02T18:20:00Z",
+    "updated_at": "2024-11-02T18:25:00Z",
+    "chat_messages": [
+      {"uuid": "m0000000-0000-4000-8000-000000000201", "text": "Old format: flat text only, about kubernetes pods.",
+       "sender": "human", "created_at": "2024-11-02T18:20:00Z"},
+      {"uuid": "m0000000-0000-4000-8000-000000000202", "text": "Every pod gets its own IP address.",
+       "sender": "assistant", "created_at": "2024-11-02T18:20:10Z"}
+    ]
+  },
+  {
+    "uuid": "c0000000-0000-4000-8000-000000000003",
+    "name": "Edited prompt creates a branch",
+    "created_at": "2025-06-01T08:00:00Z",
+    "updated_at": "2025-06-01T08:10:00Z",
+    "current_leaf_message_uuid": "m0000000-0000-4000-8000-000000000306",
+    "chat_messages": [
+      {"uuid": "m0000000-0000-4000-8000-000000000301", "parent_message_uuid": "00000000-0000-4000-8000-000000000000",
+       "text": "Plan a trip to Lisbon.", "sender": "human", "created_at": "2025-06-01T08:00:00Z"},
+      {"uuid": "m0000000-0000-4000-8000-000000000302", "parent_message_uuid": "m0000000-0000-4000-8000-000000000301",
+       "text": "Day one: Alfama.", "sender": "assistant", "created_at": "2025-06-01T08:00:10Z"},
+      {"uuid": "m0000000-0000-4000-8000-000000000303", "parent_message_uuid": "m0000000-0000-4000-8000-000000000302",
+       "text": "ABANDONED-BRANCH: make it a budget trip.", "sender": "human", "created_at": "2025-06-01T08:01:00Z"},
+      {"uuid": "m0000000-0000-4000-8000-000000000304", "parent_message_uuid": "m0000000-0000-4000-8000-000000000303",
+       "text": "ABANDONED-BRANCH: hostels it is.", "sender": "assistant", "created_at": "2025-06-01T08:01:10Z"},
+      {"uuid": "m0000000-0000-4000-8000-000000000305", "parent_message_uuid": "m0000000-0000-4000-8000-000000000302",
+       "text": "Make it a food-focused trip.", "sender": "human", "created_at": "2025-06-01T08:02:00Z"},
+      {"uuid": "m0000000-0000-4000-8000-000000000306", "parent_message_uuid": "m0000000-0000-4000-8000-000000000305",
+       "text": "Start with pasteis de nata in Belem.", "sender": "assistant", "created_at": "2025-06-01T08:02:10Z"}
+    ]
+  },
+  {
+    "uuid": "c0000000-0000-4000-8000-000000000004",
+    "name": "Empty conversation",
+    "created_at": "2025-07-01T08:00:00Z",
+    "updated_at": "2025-07-01T08:00:00Z",
+    "chat_messages": []
+  },
+  {
+    "name": "MALFORMED: no uuid, must be skipped",
+    "chat_messages": []
+  },
+  "MALFORMED: not even an object"
+]

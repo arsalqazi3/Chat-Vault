@@ -6,11 +6,11 @@ Living status file. Updated at the end of every phase so work can resume in a ne
 
 | # | Phase | Status |
 |---|-------|--------|
-| 1 | Data layer (parsers, ingest, SQLite + FTS5) | **Nearly done**: only the Claude parser is left, waiting on the real export |
+| 1 | Data layer (parsers, ingest, SQLite + FTS5) | **Done, provisional**: Claude parser built from the documented format; verify against the real export |
 | 2 | Tools + local stdio mode | **Done** (2026-10-10) |
 | 3 | Docker + CI | **Done**: CI green on GitHub (2026-10-11) |
-| 4 | Remote mode (streamable HTTP + OAuth) | **Done locally**, awaiting review + CI (2026-10-11) |
-| 5 | ChatGPT export parser (optional, ask first) | Not started |
+| 4 | Remote mode (streamable HTTP + OAuth) | **Done**: CI green (2026-10-11); live login verified in Phase 6 |
+| 5 | ChatGPT export parser | **Done, provisional**: built from the documented format; verify against the real export |
 | 6 | Go live on the Mac mini server | Not started |
 
 ## Phase 1: data layer
@@ -23,10 +23,29 @@ Done:
 - `chat_vault/data/ingest.py`: replaces one source's data in a single transaction, rolls back on failure, rebuilds FTS. CLI `chat-vault-ingest`.
 - `chat_vault/data/inspect_export.py`: prints export structure only, never values.
 
-Left:
-1. User puts the real Claude export in `data/raw/claude/`; run the inspector.
-2. Build `chat_vault/data/parsers/claude.py` from the real structure and register it.
-3. Synthetic fixture in `tests/fixtures/claude/` + parser tests.
+- 2026-10-11: the user chose to supply both exports at the end, so both parsers were built from the documented formats first (see "Phases 1 + 5" below) and are marked PROVISIONAL until checked against the real exports.
+
+## Phases 1 + 5: export parsers (2026-10-11)
+Done:
+- `chat_vault/data/export_files.py`: reads JSON from an export folder OR straight from the `.zip` (no unpacking on disk), with a 2 GiB per-file cap and content-free error messages. `to_iso()` normalises ISO strings and epoch seconds to `YYYY-MM-DDTHH:MM:SSZ` (UTC).
+- `chat_vault/data/parsers/claude.py`: `conversations.json`. Uses `content` text blocks (drops thinking, tool_use and tool_result), falling back to flat `text`. Appends attachment `extracted_content` and file names, labelled. Follows `current_leaf_message_uuid` via `parent_message_uuid` when present (edited branches), else list order. Senders human→user, assistant→assistant. Skips malformed conversations with a count-only warning.
+- `chat_vault/data/parsers/chatgpt.py`: `conversations*.json` (handles split files). Main branch = walk `parent` from `current_node`; without `current_node`, follow the last child from the root. Keeps user/assistant roles and `text`/`multimodal_text` content only (drops system, tool, hidden messages, custom instructions, thoughts and code). Image parts become `[Image]`. Epoch timestamps become ISO. Cycle-safe.
+- Both registered in `PARSERS`; `ExportParser` interface unchanged.
+- `ingest --dry-run`: parses and prints counts only (chats, empty chats, messages by sender, date range, longest message). Needs no DB.
+- Inspector: reads `.zip` directly. Stricter field-name rule (snake_case only), so UUID-keyed maps are always hidden.
+- `.gitignore`: also ignores `conversations-*.json`, with an exception for `tests/fixtures/**/conversations.json` only (verified: real exports anywhere stay ignored).
+- Synthetic fixtures `tests/fixtures/{claude,chatgpt}/conversations.json` plant "SHOULD-NOT-APPEAR" / "ABANDONED-BRANCH" / "REGENERATED-AWAY" markers in everything that must be skipped.
+- `tests/test_parsers.py`: both parsers, zip vs folder, split files, malformed input, cycles, timestamps, and a two-source end-to-end search.
+- `scripts/smoke_test_image.py` (CI) now zips both fixtures, runs the image's ingest on each (read-only export mount), then searches across both over hardened stdio. Passed locally on 2026-10-11.
+- Tests: 112 passing; ruff clean.
+
+### When the real exports arrive (checklist)
+1. Put the zips in `data/raw/` (gitignored). Don't unzip them.
+2. `python -m chat_vault.data.inspect_export data/raw/<claude>.zip` (and the ChatGPT one). Prints structure only.
+3. Compare against what the parsers rely on (listed at the top of each parser module). Look especially for new `sender`/`role`/`content_type`/block `type` values and for renamed fields.
+4. `chat-vault-ingest --source <s> --export <zip> --dry-run`: check the counts are plausible (chats about equal to what the app shows; few or no empty chats; both senders present).
+5. Fix any mismatch, update the synthetic fixtures to copy the real structure, and re-run the tests.
+6. Remove "PROVISIONAL" from both parser docstrings and this file, then do the real ingest.
 
 ## Phase 2: tools + stdio
 Done:
@@ -113,6 +132,7 @@ Not verifiable until Phase 6 (needs real GitHub App, domain, tunnel):
 - [x] FastMCP 4.1 OAuthProxy / GitHubProvider read from installed source (2026-10-11).
 - [x] OpenAI + Anthropic connector auth docs checked (2026-10-11); facts under Decisions.
 - [ ] Phase 6: fetch OpenAI's published egress IP list for the WAF rule.
+- [ ] Verify both parsers against the real exports (checklist under "Phases 1 + 5").
 - [ ] README Docker config for Claude desktop not yet tried end-to-end with the app itself.
 
 ## How to run (dev)

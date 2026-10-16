@@ -63,13 +63,31 @@ python -m venv .venv
 .venv/Scripts/activate              # macOS/Linux: source .venv/bin/activate
 pip install -e ".[dev]"
 
-# 1. Put your unzipped Claude export in data/raw/claude/
-# 2. Build the database
-export CHAT_VAULT_DB_PATH=data/chat-vault.db      # PowerShell: $env:CHAT_VAULT_DB_PATH="data/chat-vault.db"
-chat-vault-ingest --source claude --export data/raw/claude
+# 1. Put your export zips in data/raw/ (no need to unzip them)
+# 2. Optional: check what will be imported. Prints counts only, writes nothing.
+chat-vault-ingest --source claude --export data/raw/claude-export.zip --dry-run
 
-# Re-run the same command with a newer export at any time: it replaces the old data.
+# 3. Build the database
+export CHAT_VAULT_DB_PATH=data/chat-vault.db      # PowerShell: $env:CHAT_VAULT_DB_PATH="data/chat-vault.db"
+chat-vault-ingest --source claude  --export data/raw/claude-export.zip
+chat-vault-ingest --source chatgpt --export data/raw/chatgpt-export.zip
+
+# Re-run either command with a newer export at any time: it replaces that source's old data.
 ```
+
+### Supported exports
+
+| Source | How to get it | What's imported |
+|--------|---------------|-----------------|
+| `claude` | claude.ai → Settings → Privacy → Export data | Every conversation's visible branch: your messages, Claude's replies, and the text of attached files. Reasoning and tool calls are left out. |
+| `chatgpt` | ChatGPT → Settings → Data controls → Export data | Each conversation's main branch (the one you saw on screen), so abandoned edits and regenerated answers are left out. System prompts, custom instructions, reasoning and tool output are left out. |
+
+`--export` takes the downloaded `.zip` directly or its unzipped folder. Reading the zip
+means your chats never need to be unpacked on disk.
+
+To check a new export's format without revealing any content:
+`python -m chat_vault.data.inspect_export <export.zip>` prints field names, types and
+counts only.
 
 ## Docker
 
@@ -81,11 +99,13 @@ is built from a hash-pinned lockfile on a digest-pinned base image.
 
 ```bash
 docker run --rm --read-only --network none --cap-drop ALL --security-opt no-new-privileges \
-  -v /ABSOLUTE/PATH/TO/export:/export:ro \
+  -v /ABSOLUTE/PATH/TO/exports:/export:ro \
   -v /ABSOLUTE/PATH/TO/chat-vault-data:/data \
   arslanasadqazi/chat-vault:latest \
-  python -m chat_vault.data.ingest --source claude --export /export
+  python -m chat_vault.data.ingest --source claude --export /export/claude-export.zip
 ```
+
+Run it again with `--source chatgpt --export /export/chatgpt-export.zip` for ChatGPT.
 
 The export is mounted read-only; only the data folder is writable, and only for this one
 command. The database is created with owner-only permissions for the container user.
@@ -93,7 +113,7 @@ On a **Linux** host, first give that user the data folder:
 `sudo chown 10001:10001 /ABSOLUTE/PATH/TO/chat-vault-data`
 (Docker Desktop on macOS/Windows handles this for you).
 
-Re-run it whenever you have a newer export; it replaces the old data.
+Re-run it whenever you have a newer export; it replaces that source's old data.
 
 ### 2. Use with the Claude desktop app (stdio)
 

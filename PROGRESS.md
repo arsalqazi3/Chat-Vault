@@ -11,7 +11,7 @@ Living status file. Updated at the end of every phase so work can resume in a ne
 | 3 | Docker + CI | **Done**: CI green on GitHub (2026-10-11) |
 | 4 | Remote mode (streamable HTTP + OAuth) | **Done**: CI green (2026-10-11); live login verified in Phase 6 |
 | 5 | ChatGPT export parser | **Done, provisional**: built from the documented format; verify against the real export |
-| 6 | Go live on the Mac mini server | Not started |
+| 6 | Go live on the Mac mini server | **Paused** by the user (2026-10-17): deciding whether remote hosting is worth it. Remote mode stays built and tested. |
 
 ## Phase 1: data layer
 Done:
@@ -102,6 +102,21 @@ Verified locally on 2026-10-11:
 
 Not verifiable until Phase 6 (needs real GitHub App, domain, tunnel):
 - [ ] Real GitHub login; adding the connector in claude.ai and ChatGPT; CIMD with Claude's real metadata document.
+
+## Newcomer experience (2026-10-18)
+The user's plan is now **Claude desktop only** (local; no server). Done:
+- **Desktop extension (`.mcpb`, MCPB manifest 0.4, `uv` runtime)**:
+  - `extension/manifest.json`: settings form with Claude export zip, optional ChatGPT zip and library folder (default `${DOCUMENTS}/chat-vault`). Runs `uv run --frozen --no-dev python -m chat_vault.desktop`, so Claude installs Python and the exact `uv.lock` versions itself. Users need nothing installed.
+  - `chat_vault/desktop.py`: on each start, imports any export whose size or mtime changed (fingerprints in `imports.json`), then hands over to the read-only stdio server. A broken new export logs an error and keeps the previous data. Logs go to stderr only.
+  - `scripts/build_extension.py`: assembles the bundle from an explicit allow-list, draws the icon in code (no binaries in the repo), and runs the pinned `@anthropic-ai/mcpb@2.1.2` validate + pack into `dist/chat-vault-<version>.mcpb` (about 110 KB, 25 files, code only). Fails if the manifest and pyproject versions differ.
+- **Single source of truth for dependencies: `uv.lock`.** `requirements*.txt` are now generated from it (cross-platform markers, hashes). This bumped a few patch versions (e.g. starlette 1.8.0, authlib 1.9.1); all tests re-run green. CI checks the files stay in sync.
+- CI: `extension` job (build, validate, code-only check, artifact); `release` job on tags (GitHub Release with the `.mcpb`; `contents: write` in that job only).
+- README rewritten local-first: 5-minute extension setup, example questions, where it works (desktop chat + local Cowork yes; web/mobile/cloud only via remote mode), privacy section, Python and Docker routes, remote mode under "Advanced". Badges added.
+- `SECURITY.md`: private reporting via GitHub, what to include (never real data), scope.
+- Tests: `tests/test_desktop.py` (first-start import, unchanged export skipped, changed export re-imported, broken export keeps data, unset options, main hand-off).
+
+To verify with the user:
+- [ ] Install the built `.mcpb` in the real Claude desktop app (chat + local Cowork). The `uv` runtime support and file-picker settings can only be confirmed in the app.
 
 ## Decisions
 - **Standalone FastMCP, pinned `>=4.1,<5`** (4.1.0 installed 2026-10-10). It uses MCP SDK v2: `ToolAnnotations` fields are snake_case in Python (`read_only_hint`) and camelCase on the wire.

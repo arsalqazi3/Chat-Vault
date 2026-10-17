@@ -1,0 +1,85 @@
+{
+  "manifest_version": "0.4",
+  "name": "chat-vault",
+  "display_name": "chat-vault",
+  "version": "0.1.0",
+  "description": "Search and read your exported Claude and ChatGPT chat history. Read-only, fully local.",
+  "long_description": "chat-vault turns the chat-history export you download from Claude (or ChatGPT) into a private, searchable library on your own computer, and gives Claude three read-only tools to search it, list it and read old conversations.\n\n- **Local only**: runs on your computer; nothing is uploaded anywhere by chat-vault.\n- **Read-only**: the tools can't change or delete anything.\n- **Safe with old text**: Claude is told that everything in your history is archived data, not instructions.\n\nPick your export .zip in the settings below. When you download a newer export, point the setting at it (or replace the file) and chat-vault re-imports it automatically.",
+  "author": {
+    "name": "Arslan Qazi",
+    "url": "https://github.com/arsalqazi3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/arsalqazi3/Chat-Vault"
+  },
+  "homepage": "https://github.com/arsalqazi3/Chat-Vault",
+  "documentation": "https://github.com/arsalqazi3/Chat-Vault#readme",
+  "support": "https://github.com/arsalqazi3/Chat-Vault/issues",
+  "icon": "icon.png",
+  "server": {
+    "type": "uv",
+    "entry_point": "chat_vault/desktop.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "${__dirname}",
+        "--frozen",
+        "--no-dev",
+        "python",
+        "-m",
+        "chat_vault.desktop"
+      ],
+      "env": {
+        "CHAT_VAULT_CLAUDE_EXPORT": "${user_config.claude_export}",
+        "CHAT_VAULT_CHATGPT_EXPORT": "${user_config.chatgpt_export}",
+        "CHAT_VAULT_DATA_DIR": "${user_config.data_folder}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "search_chats",
+      "description": "Full-text search over your archived chats (titles and messages)."
+    },
+    {
+      "name": "read_chat",
+      "description": "Read one archived conversation, a page at a time."
+    },
+    {
+      "name": "list_chats",
+      "description": "Browse archived chats, newest first, by source and date."
+    }
+  ],
+  "user_config": {
+    "claude_export": {
+      "type": "file",
+      "title": "Claude export (.zip)",
+      "description": "The zip you downloaded from Claude: Settings → Privacy → Export data. No need to unzip it.",
+      "required": false
+    },
+    "chatgpt_export": {
+      "type": "file",
+      "title": "ChatGPT export (.zip), optional",
+      "description": "The zip from ChatGPT: Settings → Data controls → Export data.",
+      "required": false
+    },
+    "data_folder": {
+      "type": "directory",
+      "title": "Library folder",
+      "description": "Where chat-vault keeps its searchable copy of your history. Keep it private.",
+      "required": true,
+      "default": "${DOCUMENTS}/chat-vault"
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "python": ">=3.13"
+    }
+  },
+  "keywords": ["chat history", "claude", "chatgpt", "search", "archive", "export"],
+  "license": "MIT"
+}

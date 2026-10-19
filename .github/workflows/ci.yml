@@ -189,7 +189,11 @@ jobs:
       - name: Create the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "$GITHUB_REF_NAME" dist/*.mcpb --title "$GITHUB_REF_NAME" --generate-notes
+        # Tags with a suffix (v0.1.0-rc.1) become pre-releases: downloadable, but not "latest".
+        run: |
+          flags=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then flags+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" dist/*.mcpb --title "$GITHUB_REF_NAME" --generate-notes "${flags[@]}"
 
   publish:
     name: publish multi-arch image
@@ -211,11 +215,12 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.IMAGE }}
-          # v1.2.3 -> 1.2.3, 1.2, latest
+          # v1.2.3 -> 1.2.3, 1.2, latest.  v1.2.3-rc.1 -> 1.2.3-rc.1 only
+          # (metadata-action skips the 1.2 tag for pre-releases; "latest" is disabled below).
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .

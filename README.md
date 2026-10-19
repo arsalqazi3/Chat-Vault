@@ -23,8 +23,8 @@ You need the **Claude desktop app** (Windows or macOS).
 1. **Download your history.** In Claude: *Settings → Privacy → Export data*. You'll get an
    email with a zip. Don't unzip it. (Optional: ChatGPT's is under *Settings → Data controls
    → Export data*.)
-2. **Download chat-vault:** grab `chat-vault-<version>.mcpb` from the
-   [latest release](https://github.com/arsalqazi3/Chat-Vault/releases/latest).
+2. **Download chat-vault:** on the [Releases page](https://github.com/arsalqazi3/Chat-Vault/releases),
+   open the newest release and download `chat-vault-<version>.mcpb` under *Assets*.
 3. **Install it:** double-click the `.mcpb` file (or drag it into *Claude → Settings →
    Extensions*).
 4. **Fill in the settings form:** choose your export zip, and a folder for the library

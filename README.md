@@ -16,9 +16,16 @@ tell me about my tomato plants last year?"*.
 - **Safe with old text:** Claude is told that everything in your history is archived data,
   not instructions, so an old pasted prompt can't take over.
 
-## Get started (5 minutes, no coding)
+## Get started (about 10 minutes, no coding)
 
-You need the **Claude desktop app** (Windows or macOS).
+You need the **Claude desktop app** (Windows or macOS) and **uv**, a small free tool that
+chat-vault uses to set up its Python environment. Install uv once:
+
+- **Windows** (PowerShell): `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
+- **macOS**: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+
+Then **fully quit Claude** (including its icon in the system tray or menu bar) and reopen it,
+so it can find uv.
 
 1. **Download your history** (two small steps):
    1. In Claude: *Settings → Privacy → Export data*. You'll receive a small **manifest**
@@ -37,14 +44,28 @@ You need the **Claude desktop app** (Windows or macOS).
    Extensions*). Claude warns that it's from an unverified developer, which is normal for
    extensions that aren't in Anthropic's directory.
 4. **Fill in the settings form:** choose `conversations-000.zip` (no need to unzip it; any
-   further parts in the same folder are found automatically), and a folder for the library
-   (the default `Documents/chat-vault` is fine).
+   further parts in the same folder are found automatically). The library folder is optional:
+   leave it empty to use a `chat-vault` folder in your home folder.
 5. **Ask away** in a new chat: *"search my old chats for…"*. The first time, Claude asks
    permission to use chat-vault's tools. Allow them.
 
-The first start takes a little longer while your history is imported (and Claude sets up
-chat-vault's Python environment automatically). When you download a newer export, point the
-setting at it, and chat-vault re-imports it on the next start.
+The first start takes a little longer while your history is imported and uv sets up Python.
+When you download a newer export, replace the old file (or point the setting at the new one)
+and restart Claude: chat-vault re-imports it automatically.
+
+**Where to keep things:** anywhere you like, but if your history should stay on this computer,
+avoid folders synced to OneDrive, iCloud or Dropbox. On Windows the *Documents* folder is
+often synced to OneDrive. After the first import you can delete the zip; chat-vault keeps
+its own copy in the library folder.
+
+### If it doesn't work
+| What you see | Fix |
+|---|---|
+| The extension shows **Failed** right after installing, or a "uv" / "spawn" error | uv isn't installed or Claude can't see it yet. Install uv (above), then **fully quit and reopen Claude**. |
+| "This is the export's manifest…" | You picked `manifest-….json`. Download `conversations-000.zip` from it and pick that instead. |
+| "No conversations.json found…" | You picked another zip from the export (projects, memories, …). Pick `conversations-000.zip`. |
+| Some chats have a title but no messages | Claude's export doesn't include text for some session types. Nothing chat-vault can import. |
+| Anything else | *Settings → Developer* shows chat-vault's log. Please [open an issue](https://github.com/arsalqazi3/Chat-Vault/issues) with the error (never your chat content). |
 
 ### What you can ask
 - *"Search my old chats for sourdough"*

@@ -116,7 +116,8 @@ The user's plan is now **Claude desktop only** (local; no server). Done:
 - Tests: `tests/test_desktop.py` (first-start import, unchanged export skipped, changed export re-imported, broken export keeps data, unset options, main hand-off).
 
 To verify with the user:
-- [ ] Install the built `.mcpb` in the real Claude desktop app (chat + local Cowork). The `uv` runtime support and file-picker settings can only be confirmed in the app.
+- [x] Installed in the real Claude desktop app (2026-10-20): works after installing uv and choosing a library folder (both addressed in rc.3).
+- [ ] rc.3 newcomer re-test: fresh install with uv preinstalled and the library folder left empty.
 
 ## Real Claude export check + newcomer-test fixes (2026-10-19, for v0.1.0-rc.2)
 The newcomer test found that Claude's export changed shape. Checked against the user's real export (structure and counts only; no content was printed):
@@ -135,6 +136,14 @@ Fixes made:
 - Synthetic Claude fixture updated to the real shape: parent links without a current leaf, edited first message (two roots) plus a regenerated reply, the new block types, a null file name, and a text-less chat.
 - README and extension settings text explain the manifest, then download `conversations-000.zip`.
 - Release process: tags with a suffix (`v0.1.0-rc.1`) become GitHub pre-releases, and the Docker image gets no `latest` tag for them. README links to the Releases page (pre-releases aren't "latest").
+
+## First real install in Claude desktop (2026-10-20, rc.2 to rc.3)
+The user installed rc.2's `.mcpb` in the real Claude desktop app (Windows, Microsoft Store build). After two fixes **it worked end to end**: 450 real chats were imported and Claude answered questions from them via the tools.
+
+Problems found, and fixes in rc.3:
+1. **`uv` not provided by Claude desktop.** The extension failed until the user installed uv (astral.sh installer) and fully restarted Claude. MCPB's spec says the host manages uv, but host support has been inconsistent (mcpb issues #263, #291, #84/#96), and our manifest must specify `mcp_config` (`command: "uv"`) because the strict 0.4 schema still requires it. Since our code can't run without uv, it can't print an error itself. **Fix:** uv is now a stated prerequisite (README "Get started" with one-line installs, manifest description) plus a troubleshooting table. A self-contained alternative (per-OS PyInstaller binaries) is noted as future work.
+2. **`${DOCUMENTS}` default not expanded.** The library folder setting arrived as the literal text `${DOCUMENTS}/chat-vault`, so the launcher exited. **Fix:** the setting is now optional with no default. Any unset or unexpanded value (anything containing `${`) falls back to `<home>/chat-vault`, deliberately not Documents, which is often synced to OneDrive or iCloud. Tests cover the exact strings seen.
+- README: "Where to keep things" (avoid synced folders; the zip can be deleted after import) and an "If it doesn't work" table built from the real failures.
 
 ## Decisions
 - **Standalone FastMCP, pinned `>=4.1,<5`** (4.1.0 installed 2026-10-10). It uses MCP SDK v2: `ToolAnnotations` fields are snake_case in Python (`read_only_hint`) and camelCase on the wire.

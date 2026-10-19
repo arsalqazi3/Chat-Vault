@@ -80,10 +80,35 @@ def test_unset_options_are_ignored(monkeypatch) -> None:
     assert desktop.configured_exports() == {}
 
 
-def test_main_requires_a_data_folder(monkeypatch) -> None:
-    monkeypatch.delenv("CHAT_VAULT_DATA_DIR", raising=False)
-    with pytest.raises(SystemExit, match="choose a folder"):
-        desktop.main()
+@pytest.mark.parametrize(
+    "value", [None, "", "${DOCUMENTS}/chat-vault", "${user_config.data_folder}"]
+)
+def test_unset_or_unexpanded_library_folder_falls_back_to_home(
+    monkeypatch, tmp_path: Path, value
+) -> None:
+    # Seen in the real Claude desktop app: the manifest's ${DOCUMENTS} default
+    # arrived as literal text. That must not stop chat-vault from starting.
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path / "home"))
+    if value is None:
+        monkeypatch.delenv("CHAT_VAULT_DATA_DIR", raising=False)
+    else:
+        monkeypatch.setenv("CHAT_VAULT_DATA_DIR", value)
+    monkeypatch.setenv("CHAT_VAULT_CLAUDE_EXPORT", str(make_zip(tmp_path / "c.zip", "claude")))
+    monkeypatch.delenv("CHAT_VAULT_CHATGPT_EXPORT", raising=False)
+    served = {}
+    import chat_vault.server
+
+    monkeypatch.setattr(
+        chat_vault.server, "main", lambda: served.update(db=os.environ["CHAT_VAULT_DB_PATH"])
+    )
+    desktop.main()
+    assert served["db"] == str(tmp_path / "home" / "chat-vault" / desktop.DB_NAME)
+    assert chat_count(tmp_path / "home" / "chat-vault" / desktop.DB_NAME) == 6
+
+
+def test_default_library_is_not_in_documents() -> None:
+    # Documents is often synced to OneDrive/iCloud; the library must not go there by default.
+    assert "Documents" not in desktop.default_data_dir().parts
 
 
 def test_main_requires_an_export_on_first_run(monkeypatch, tmp_path: Path) -> None:

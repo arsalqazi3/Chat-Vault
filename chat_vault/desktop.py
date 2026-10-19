@@ -14,7 +14,8 @@ MCP tools themselves still can't write anything.
 Settings (filled in by the extension from the user's choices):
     CHAT_VAULT_CLAUDE_EXPORT    path to the Claude export .zip (optional)
     CHAT_VAULT_CHATGPT_EXPORT   path to the ChatGPT export .zip (optional)
-    CHAT_VAULT_DATA_DIR         folder for the library database (required)
+    CHAT_VAULT_DATA_DIR         folder for the library database (optional;
+                                default: <home>/chat-vault)
 """
 
 import json
@@ -43,12 +44,29 @@ def fingerprint(path: Path) -> dict[str, object]:
     return {"path": str(path.resolve()), "size": stat.st_size, "mtime": int(stat.st_mtime)}
 
 
+def setting(name: str) -> str | None:
+    """A setting from the extension form, or None if it's unset.
+
+    An unset option can arrive as "" or as unexpanded placeholder text such as
+    "${user_config.chatgpt_export}" or "${DOCUMENTS}/chat-vault": seen in the
+    real Claude desktop app, which didn't expand the manifest's default.
+    """
+    value = os.environ.get(name, "").strip()
+    return value if value and "${" not in value else None
+
+
+def default_data_dir() -> Path:
+    """<home>/chat-vault. Deliberately NOT Documents: on Windows and macOS the
+    Documents folder is often synced to OneDrive or iCloud, which would upload
+    the library."""
+    return Path.home() / "chat-vault"
+
+
 def configured_exports() -> dict[str, Path]:
     exports = {}
     for source, name in EXPORT_SETTINGS.items():
-        # An unset option may arrive as "" or as the literal placeholder text.
-        value = os.environ.get(name, "").strip()
-        if value and not value.startswith("${"):
+        value = setting(name)
+        if value:
             exports[source] = Path(value)
     return exports
 
@@ -104,11 +122,14 @@ def main() -> None:
     # stdout carries the MCP protocol: every log line must go to stderr.
     logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(levelname)s %(message)s")
 
-    data_dir_value = os.environ.get("CHAT_VAULT_DATA_DIR", "").strip()
-    if not data_dir_value or data_dir_value.startswith("${"):
-        sys.exit("chat-vault: choose a folder for the library in the extension settings")
-    data_dir = Path(data_dir_value)
-    data_dir.mkdir(parents=True, exist_ok=True)
+    chosen = setting("CHAT_VAULT_DATA_DIR")
+    data_dir = Path(chosen) if chosen else default_data_dir()
+    if not chosen:
+        log.info("No library folder chosen; using the default folder in your home directory")
+    try:
+        data_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        sys.exit("chat-vault: can't create the library folder; choose another one in the settings")
 
     exports = configured_exports()
     if not exports and not imported_sources(data_dir):

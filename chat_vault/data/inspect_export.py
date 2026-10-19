@@ -17,6 +17,7 @@ import re
 import sys
 import zipfile
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -78,16 +79,29 @@ def _range(nums: list[int]) -> str:
     return f"{min(nums)}..{max(nums)}" if nums else "-"
 
 
-def describe_json(name: str, size: int, raw: bytes) -> None:
-    print(f"\n=== {name}  ({size:,} bytes) ===")
-    try:
-        data = json.loads(raw.decode("utf-8-sig"))
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        # Print only the error type, not the surrounding text.
-        print(f"  could not parse as JSON: {type(exc).__name__}")
-        return
+# Ids in file names (e.g. projects/<uuid>.json) are replaced, so files that
+# differ only by id are grouped and described ONCE, and no ids are printed.
+ID_IN_NAME = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
+
+
+def layout(name: str) -> str:
+    return ID_IN_NAME.sub("<id>", name)
+
+
+def describe_group(label: str, files: list[tuple[int, bytes]]) -> None:
+    """Print one combined structure for all files in a group (same layout)."""
+    total = sum(size for size, _ in files)
+    print()
+    print(f"=== {label}  ({len(files)} file(s), {total:,} bytes) ===")
     stats: dict[str, FieldStats] = defaultdict(FieldStats)
-    walk(data, "$", stats)
+    unreadable = 0
+    for _, raw in files:
+        try:
+            walk(json.loads(raw.decode("utf-8-sig")), "$", stats)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            unreadable += 1  # never print the surrounding text: it may be content
+    if unreadable:
+        print(f"  could not parse {unreadable} file(s) as JSON")
     for p in sorted(stats):
         s = stats[p]
         types = ", ".join(f"{t} x{n}" for t, n in s.types.most_common())
@@ -102,34 +116,44 @@ def describe_json(name: str, size: int, raw: bytes) -> None:
         print(line)
 
 
+def report(kind: str, entries: list[tuple[str, int, Callable[[], bytes]]]) -> None:
+    """entries: (name, size, read-bytes function) for every file in the export."""
+    groups: dict[str, list[tuple[str, int, Callable[[], bytes]]]] = defaultdict(list)
+    for entry in entries:
+        groups[layout(entry[0])].append(entry)
+    print(f"Export {kind} contains {len(entries)} file(s):")
+    for label, members in sorted(groups.items()):
+        size = sum(m[1] for m in members)
+        count = f"{len(members)} x " if len(members) > 1 else ""
+        print(f"  {count}{label}  ({size:,} bytes)")
+    for label, members in sorted(groups.items()):
+        if label.lower().endswith(".json"):
+            describe_group(label, [(size, read()) for _, size, read in members])
+
+
 def main(argv: list[str] | None = None) -> None:
     args = argv if argv is not None else sys.argv[1:]
     if len(args) != 1:
-        sys.exit("usage: python -m chat_vault.data.inspect_export <export folder or .zip>")
+        sys.exit("usage: python -m chat_vault.data.inspect_export <export .zip, .json or folder>")
     root = Path(args[0])
 
     if root.is_file() and zipfile.is_zipfile(root):
         with zipfile.ZipFile(root) as archive:
-            members = sorted(
-                (m for m in archive.infolist() if not m.is_dir()), key=lambda m: m.filename
+            members = [m for m in archive.infolist() if not m.is_dir()]
+            report(
+                "zip",
+                [(m.filename, m.file_size, lambda m=m: archive.read(m)) for m in members],
             )
-            print(f"Export zip contains {len(members)} file(s):")
-            for m in members:
-                print(f"  {m.filename}  ({m.file_size:,} bytes)")
-            for m in members:
-                if m.filename.lower().endswith(".json"):
-                    describe_json(m.filename, m.file_size, archive.read(m))
-        return
-
-    if not root.is_dir():
-        sys.exit(f"Not a folder or .zip: {root}")
-    files = sorted(p for p in root.rglob("*") if p.is_file())
-    print(f"Export folder contains {len(files)} file(s):")
-    for p in files:
-        print(f"  {p.relative_to(root)}  ({p.stat().st_size:,} bytes)")
-    for p in files:
-        if p.suffix.lower() == ".json":
-            describe_json(str(p.relative_to(root)), p.stat().st_size, p.read_bytes())
+    elif root.is_file() and root.suffix.lower() == ".json":
+        report("file", [(root.name, root.stat().st_size, root.read_bytes)])
+    elif root.is_dir():
+        files = [p for p in root.rglob("*") if p.is_file()]
+        report(
+            "folder",
+            [(str(p.relative_to(root).as_posix()), p.stat().st_size, p.read_bytes) for p in files],
+        )
+    else:
+        sys.exit(f"Not a folder, .zip or .json: {root}")
 
 
 if __name__ == "__main__":

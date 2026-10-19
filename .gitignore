@@ -10,6 +10,8 @@
 # Raw exports (in case one is dropped outside data/ by mistake)
 conversations.json
 conversations-*.json
+# Claude export manifests contain live download links to your data.
+manifest-*.json
 users.json
 projects.json
 memories.json

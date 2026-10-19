@@ -6,7 +6,7 @@ Living status file. Updated at the end of every phase so work can resume in a ne
 
 | # | Phase | Status |
 |---|-------|--------|
-| 1 | Data layer (parsers, ingest, SQLite + FTS5) | **Done, provisional**: Claude parser built from the documented format; verify against the real export |
+| 1 | Data layer (parsers, ingest, SQLite + FTS5) | **Done**: Claude parser verified against a real export (2026-10-19) |
 | 2 | Tools + local stdio mode | **Done** (2026-10-10) |
 | 3 | Docker + CI | **Done**: CI green on GitHub (2026-10-11) |
 | 4 | Remote mode (streamable HTTP + OAuth) | **Done**: CI green (2026-10-11); live login verified in Phase 6 |
@@ -118,6 +118,24 @@ The user's plan is now **Claude desktop only** (local; no server). Done:
 To verify with the user:
 - [ ] Install the built `.mcpb` in the real Claude desktop app (chat + local Cowork). The `uv` runtime support and file-picker settings can only be confirmed in the app.
 
+## Real Claude export check + newcomer-test fixes (2026-10-19, for v0.1.0-rc.2)
+The newcomer test found that Claude's export changed shape. Checked against the user's real export (structure and counts only; no content was printed):
+- **Two-step export.** Settings → Export data gives a small `manifest-<ids>.json`: `{version, total_files, instructions, created_at, data_files: [{category, filename, export_url, part, batch_index}]}`. Its 7 zips are `conversations-000.zip`, `projects-000.zip`, `memories-000.zip`, `design_chats-000.zip`, `frames-000.zip`, `feedback-000.zip` and `light_metadata-000.zip`. The links expire after 24 h and may be single-use. **The manifest's links are secrets:** `manifest-*.json` is now gitignored everywhere.
+- `conversations-000.zip` contains ONE `conversations.json` in the classic list format (450 conversations, 12,003 messages in the real export). `projects-000.zip` uses one file per item (`projects/<uuid>.json`).
+- Fields match the parser. Senders are only human/assistant. Content block types seen: text, tool_use, tool_result, thinking, token_budget, injected_prompt_block, document, image; only `text` is kept. `files[].file_name` can be null. Attachments go up to about 2 MB of extracted text.
+- **Gap fixed:** every message has `parent_message_uuid`, but there is NO `current_leaf_message_uuid`. 62 of 450 conversations branch (edits and regenerations); the old list-order fallback would have mixed 312 abandoned-branch messages into them. The parser now follows the newest leaf (by `created_at`, ties broken by list position). In the real export the newest leaf was also the last list item in all 62 branched conversations.
+- 20 conversations contain messages with no text at all (empty `text`, no content blocks, only nameless files; likely session types whose transcript isn't exported). They keep their titles with 0 messages. This is not a parser bug.
+- Real dry run: 450 chats, 11,427 messages imported (312 abandoned-branch + 237 text-less + 27 empty skipped), 2025-12 to 2026-10. Full import takes about 3 s. Search 140-500 ms, list 5 ms; `read_chat` paging stays under the 20k-char budget.
+
+Fixes made:
+- `export_files`: numbered parts (`conversations-000.zip` also reads -001, -002, ... from the same folder); a plain `.json` file is accepted; the manifest is detected with a message saying what to download (without echoing any link); clearer "not an export" errors.
+- Claude parser: newest-leaf branch selection; a wrong zip (e.g. projects-000.zip) names the right one; docstring documents the real format. **No longer provisional.**
+- Desktop launcher: if nothing could be imported, the user sees the real reason (e.g. the manifest message), not "database not found". Success is tracked by `imports.json`, because opening the DB creates an empty file even on failure.
+- Inspector: files whose names differ only by an id are grouped and described once; ids are printed as `<id>`. Also accepts a single `.json`.
+- Synthetic Claude fixture updated to the real shape: parent links without a current leaf, edited first message (two roots) plus a regenerated reply, the new block types, a null file name, and a text-less chat.
+- README and extension settings text explain the manifest, then download `conversations-000.zip`.
+- Release process: tags with a suffix (`v0.1.0-rc.1`) become GitHub pre-releases, and the Docker image gets no `latest` tag for them. README links to the Releases page (pre-releases aren't "latest").
+
 ## Decisions
 - **Standalone FastMCP, pinned `>=4.1,<5`** (4.1.0 installed 2026-10-10). It uses MCP SDK v2: `ToolAnnotations` fields are snake_case in Python (`read_only_hint`) and camelCase on the wire.
 - **MCP spec target: 2026-07-28** (checked 2026-10-07). For Phase 4:
@@ -147,7 +165,8 @@ To verify with the user:
 - [x] FastMCP 4.1 OAuthProxy / GitHubProvider read from installed source (2026-10-11).
 - [x] OpenAI + Anthropic connector auth docs checked (2026-10-11); facts under Decisions.
 - [ ] Phase 6: fetch OpenAI's published egress IP list for the WAF rule.
-- [ ] Verify both parsers against the real exports (checklist under "Phases 1 + 5").
+- [x] Claude parser verified against a real export (2026-10-19).
+- [ ] ChatGPT parser: still provisional (no real ChatGPT export checked yet).
 - [ ] README Docker config for Claude desktop not yet tried end-to-end with the app itself.
 
 ## How to run (dev)

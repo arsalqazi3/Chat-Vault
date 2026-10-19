@@ -1,21 +1,27 @@
 """Parser for Claude data exports (claude.ai → Settings → Privacy → Export data).
 
-The export is a zip with `conversations.json` (plus users/projects files we
-ignore). Shape, as relied on here:
+How the export arrives (checked against a real export, 2026-10-19): Claude first
+gives you a small manifest .json listing several zips with download links.
+The chats are in `conversations-000.zip` (big accounts get -001, -002, ...),
+which contains one `conversations.json`. Older exports were a single zip with
+the same `conversations.json` inside. Both work here.
 
-    [ { "uuid", "name", "created_at", "updated_at",
-        "current_leaf_message_uuid"?,                # present in newer exports
+Shape, as relied on here:
+
+    [ { "uuid", "name", "created_at", "updated_at", "summary"?,
+        "current_leaf_message_uuid"?,           # not in the 2026-10 export
         "chat_messages": [
           { "uuid", "sender": "human" | "assistant", "created_at",
-            "parent_message_uuid"?,                  # present in newer exports
-            "text": "...",                           # flat text (older exports)
+            "parent_message_uuid",              # every message; edits create branches
+            "text": "...",                      # flat text (also present in new exports)
             "content": [ {"type": "text", "text": "..."},
-                         {"type": "thinking" | "tool_use" | "tool_result", ...} ],
-            "attachments": [ {"file_name", "extracted_content"} ],
-            "files": [ {"file_name"} ] } ] } ]
+                         {"type": "thinking" | "tool_use" | "tool_result" | "token_budget"
+                                 | "injected_prompt_block" | "document" | "image", ...} ],
+            "attachments": [ {"file_name", "file_type", "extracted_content"} ],
+            "files": [ {"file_uuid", "file_name" (may be null)} ] } ] } ]
 
-PROVISIONAL: built from the documented format and synthetic fixtures. To be
-checked field-by-field against a real export with the inspector before use.
+Only "text" content blocks are kept: the others are Claude's reasoning, tool
+calls and results, or internal blocks that weren't part of the visible chat.
 """
 
 import logging
@@ -48,7 +54,10 @@ class ClaudeParser(ExportParser):
                     continue
                 yield chat
         if not found:
-            raise ValueError("No conversations.json found in the Claude export")
+            raise ValueError(
+                "No conversations.json found. Choose conversations-000.zip from your Claude "
+                "export (not projects, memories or the other zips)."
+            )
         if skipped:
             # Counts only, never content.
             log.warning("Skipped %d conversation(s) with an unexpected structure", skipped)
@@ -74,13 +83,21 @@ def parse_conversation(raw: Any) -> ParsedChat | None:
 def main_branch(conversation: dict, messages: list[dict]) -> list[dict]:
     """The messages on the conversation's visible branch, oldest first.
 
-    Editing a prompt in Claude creates a branch. Newer exports record each
-    message's parent and the conversation's current leaf; when they do, walk
-    from the leaf back to the root. Otherwise the list order is the order.
+    Editing a message or regenerating a reply in Claude creates a branch: the
+    export keeps every version, linked by `parent_message_uuid`. We walk from
+    the branch's last message (its "leaf") back to the start:
+
+      1. the conversation's `current_leaf_message_uuid`, if the export has it;
+      2. otherwise the NEWEST leaf, i.e. the most recent edit or regeneration,
+         which is what Claude shows you (in a real export this was also the last
+         message in the list for every branched conversation);
+      3. with no parent links at all (old exports), the list order as given.
     """
-    leaf = conversation.get("current_leaf_message_uuid")
     by_id = {m.get("uuid"): m for m in messages if m.get("uuid")}
-    if not leaf or leaf not in by_id:
+    leaf = conversation.get("current_leaf_message_uuid")
+    if leaf not in by_id:
+        leaf = newest_leaf(messages, by_id)
+    if leaf is None:
         return messages
     branch, seen, node = [], set(), by_id.get(leaf)
     while node is not None and node.get("uuid") not in seen:  # `seen` guards against cycles
@@ -88,6 +105,19 @@ def main_branch(conversation: dict, messages: list[dict]) -> list[dict]:
         branch.append(node)
         node = by_id.get(node.get("parent_message_uuid"))
     return list(reversed(branch))
+
+
+def newest_leaf(messages: list[dict], by_id: dict) -> str | None:
+    """The most recently created message that no other message replies to."""
+    if not any(m.get("parent_message_uuid") in by_id for m in messages):
+        return None  # no usable parent links: keep list order
+    parents = {m.get("parent_message_uuid") for m in messages}
+    leaves = [(i, m) for i, m in enumerate(messages) if m.get("uuid") and m["uuid"] not in parents]
+    if not leaves:
+        return None
+    # Newest by timestamp; ties (or missing timestamps) go to the later list position.
+    _, leaf = max(leaves, key=lambda pair: (to_iso(pair[1].get("created_at")) or "", pair[0]))
+    return leaf["uuid"]
 
 
 def parse_message(raw: dict) -> ParsedMessage | None:

@@ -4,7 +4,7 @@
   "display_name": "chat-vault",
   "version": "0.1.0",
   "description": "Search and read your exported Claude and ChatGPT chat history. Read-only, fully local.",
-  "long_description": "chat-vault turns the chat-history export you download from Claude (or ChatGPT) into a private, searchable library on your own computer, and gives Claude three read-only tools to search it, list it and read old conversations.\n\n- **Local only**: runs on your computer; nothing is uploaded anywhere by chat-vault.\n- **Read-only**: the tools can't change or delete anything.\n- **Safe with old text**: Claude is told that everything in your history is archived data, not instructions.\n\nPick your export .zip in the settings below. When you download a newer export, point the setting at it (or replace the file) and chat-vault re-imports it automatically.",
+  "long_description": "chat-vault turns the chat-history export you download from Claude (or ChatGPT) into a private, searchable library on your own computer, and gives Claude three read-only tools to search it, list it and read old conversations.\n\n- **Local only**: runs on your computer; nothing is uploaded anywhere by chat-vault.\n- **Read-only**: the tools can't change or delete anything.\n- **Safe with old text**: Claude is told that everything in your history is archived data, not instructions.\n\nPick your export (for Claude: conversations-000.zip, downloaded via the links in the export's manifest) in the settings below. When you download a newer export, point the setting at it (or replace the file) and chat-vault re-imports it automatically.",
   "author": {
     "name": "Arslan Qazi",
     "url": "https://github.com/arsalqazi3"
@@ -56,8 +56,8 @@
   "user_config": {
     "claude_export": {
       "type": "file",
-      "title": "Claude export (.zip)",
-      "description": "The zip you downloaded from Claude: Settings → Privacy → Export data. No need to unzip it.",
+      "title": "Claude export: conversations-000.zip",
+      "description": "Claude → Settings → Privacy → Export data gives you a manifest .json with download links. Download conversations-000.zip from it and choose that zip here (not the manifest). Further parts (-001, ...) in the same folder are read automatically.",
       "required": false
     },
     "chatgpt_export": {

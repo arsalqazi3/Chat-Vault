@@ -53,9 +53,13 @@ def configured_exports() -> dict[str, Path]:
     return exports
 
 
-def import_changed_exports(data_dir: Path, exports: dict[str, Path]) -> None:
-    """Import every export that changed since last time. Errors are reported, not fatal:
-    if a new export can't be read, the previously imported data stays available."""
+def import_changed_exports(data_dir: Path, exports: dict[str, Path]) -> list[str]:
+    """Import every export that changed since last time. Returns any error messages.
+
+    Errors are reported, not fatal: if a new export can't be read, the
+    previously imported data stays available.
+    """
+    errors: list[str] = []
     db_path = data_dir / DB_NAME
     state_path = data_dir / STATE_NAME
     try:
@@ -65,6 +69,7 @@ def import_changed_exports(data_dir: Path, exports: dict[str, Path]) -> None:
 
     for source, export in exports.items():
         if not export.is_file():
+            errors.append(f"The {source} export file wasn't found at the path in the settings.")
             log.warning("%s export not found at the configured path; skipping", source)
             continue
         current = fingerprint(export)
@@ -75,6 +80,7 @@ def import_changed_exports(data_dir: Path, exports: dict[str, Path]) -> None:
         try:
             count = ingest(conn, get_parser(source), export)
         except ValueError as exc:  # format problems; messages never contain chat content
+            errors.append(str(exc))
             log.error("Could not import the %s export: %s", source, exc)
             continue
         finally:
@@ -83,6 +89,15 @@ def import_changed_exports(data_dir: Path, exports: dict[str, Path]) -> None:
         log.info("Imported %d %s chats", count, source)
 
     state_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    return errors
+
+
+def imported_sources(data_dir: Path) -> list[str]:
+    """Sources that have been imported successfully at least once."""
+    try:
+        return list(json.loads((data_dir / STATE_NAME).read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return []
 
 
 def main() -> None:
@@ -96,9 +111,13 @@ def main() -> None:
     data_dir.mkdir(parents=True, exist_ok=True)
 
     exports = configured_exports()
-    if not exports and not (data_dir / DB_NAME).is_file():
+    if not exports and not imported_sources(data_dir):
         sys.exit("chat-vault: choose your Claude or ChatGPT export .zip in the extension settings")
-    import_changed_exports(data_dir, exports)
+    errors = import_changed_exports(data_dir, exports)
+    if not imported_sources(data_dir):
+        # Nothing could be imported: show the actual reason (e.g. "this is the
+        # manifest, download conversations-000.zip") instead of "database not found".
+        sys.exit("chat-vault: " + (errors[0] if errors else "no chats could be imported"))
 
     # Hand over to the normal read-only stdio server.
     os.environ["CHAT_VAULT_DB_PATH"] = str(data_dir / DB_NAME)

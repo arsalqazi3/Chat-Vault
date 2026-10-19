@@ -32,7 +32,7 @@ def test_imports_both_exports_on_first_start(tmp_path: Path) -> None:
     lib = tmp_path / "lib"
     lib.mkdir()
     desktop.import_changed_exports(lib, exports)
-    assert chat_count(lib / desktop.DB_NAME) == 8
+    assert chat_count(lib / desktop.DB_NAME) == 10  # claude 6 + chatgpt 4
 
 
 def test_unchanged_export_is_not_reimported(tmp_path: Path, monkeypatch) -> None:
@@ -52,13 +52,13 @@ def test_changed_export_is_reimported(tmp_path: Path) -> None:
     lib.mkdir()
     export = make_zip(tmp_path / "export.zip", "claude")
     desktop.import_changed_exports(lib, {"claude": export})
-    assert chat_count(lib / desktop.DB_NAME) == 4
+    assert chat_count(lib / desktop.DB_NAME) == 6
 
     # A newer download replaces the file (different size).
     shutil.copy(make_zip(tmp_path / "other.zip", "chatgpt"), export)
     os.utime(export, (2_000_000_000, 2_000_000_000))
     desktop.import_changed_exports(lib, {"chatgpt": export})
-    assert chat_count(lib / desktop.DB_NAME) == 8  # claude 4 + chatgpt 4
+    assert chat_count(lib / desktop.DB_NAME) == 10  # claude 6 + chatgpt 4
 
 
 def test_bad_export_keeps_previous_data(tmp_path: Path) -> None:
@@ -71,7 +71,7 @@ def test_bad_export_keeps_previous_data(tmp_path: Path) -> None:
     with zipfile.ZipFile(broken, "w") as z:
         z.writestr("conversations.json", "{ not json")
     desktop.import_changed_exports(lib, {"claude": broken})  # logs an error, no crash
-    assert chat_count(lib / desktop.DB_NAME) == 4
+    assert chat_count(lib / desktop.DB_NAME) == 6
 
 
 def test_unset_options_are_ignored(monkeypatch) -> None:
@@ -110,3 +110,13 @@ def test_main_imports_then_serves_read_only(monkeypatch, tmp_path: Path) -> None
     )
     desktop.main()
     assert served == {"db": str(tmp_path / "lib" / desktop.DB_NAME), "mode": "stdio"}
+
+
+def test_picking_the_manifest_explains_what_to_download(monkeypatch, tmp_path: Path) -> None:
+    manifest = tmp_path / "manifest-1.json"
+    manifest.write_text('{"version": "1.0", "data_files": []}', encoding="utf-8")
+    monkeypatch.setenv("CHAT_VAULT_DATA_DIR", str(tmp_path / "lib"))
+    monkeypatch.setenv("CHAT_VAULT_CLAUDE_EXPORT", str(manifest))
+    monkeypatch.delenv("CHAT_VAULT_CHATGPT_EXPORT", raising=False)
+    with pytest.raises(SystemExit, match="download the file named conversations-000.zip"):
+        desktop.main()

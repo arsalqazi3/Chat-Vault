@@ -61,3 +61,19 @@ def test_inspector_reads_zip(tmp_path: Path, capsys) -> None:
     assert "Export zip contains 1 file(s)" in out
     assert "$[*].name: string x1" in out
     assert "my-bank-pin" not in out
+
+
+def test_many_files_with_ids_are_grouped_once(tmp_path: Path, capsys) -> None:
+    import zipfile
+
+    archive = tmp_path / "projects-000.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        for i in range(3):
+            uid = f"0000000{i}-1111-2222-3333-444444444444"
+            z.writestr(f"projects/{uid}.json", json.dumps({"name": PRIVATE_TEXT}))
+    main([str(archive)])
+    out = capsys.readouterr().out
+    assert "3 x projects/<id>.json" in out
+    assert out.count("=== projects/<id>.json") == 1  # described once, combined
+    assert "$.name: string x3" in out
+    assert "1111-2222" not in out and "my-bank-pin" not in out

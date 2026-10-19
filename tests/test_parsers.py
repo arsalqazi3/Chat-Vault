@@ -5,6 +5,7 @@ in places the parser must skip: reasoning, tool calls, system prompts,
 abandoned edits and regenerations.
 """
 
+import json
 import shutil
 import zipfile
 from pathlib import Path
@@ -12,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from chat_vault.data.db import connect_for_ingest
-from chat_vault.data.export_files import iter_json, to_iso
+from chat_vault.data.export_files import export_parts, iter_json, to_iso
 from chat_vault.data.ingest import ingest
 from chat_vault.data.parsers import get_parser
 from chat_vault.data.parsers.chatgpt import ChatGPTParser
@@ -35,7 +36,7 @@ def claude_chats():
 
 
 def test_claude_skips_malformed_and_keeps_the_rest(claude_chats) -> None:
-    assert len(claude_chats) == 4  # 6 entries, 2 malformed
+    assert len(claude_chats) == 6  # 8 entries, 2 malformed
 
 
 def test_claude_content_blocks_attachments_and_files(claude_chats) -> None:
@@ -191,7 +192,7 @@ def test_both_sources_end_to_end(tmp_path: Path) -> None:
     """Ingest both fixtures into one database and search across them."""
     db = tmp_path / "vault.db"
     conn = connect_for_ingest(db)
-    assert ingest(conn, get_parser("claude"), FIXTURES / "claude") == 4
+    assert ingest(conn, get_parser("claude"), FIXTURES / "claude") == 6
     assert ingest(conn, get_parser("chatgpt"), FIXTURES / "chatgpt") == 4
     conn.close()
 
@@ -208,3 +209,71 @@ def test_both_sources_end_to_end(tmp_path: Path) -> None:
     # Dates from both formats filter correctly.
     dec_2024 = reader.list_chats(from_date="2024-12-01", to_date="2024-12-31")
     assert [c["id"] for c in dec_2024] == ["chatgpt:g0000000-0000-4000-8000-000000000001"]
+
+
+# ---- real-export behaviour (structure checked against a real export, 2026-10-19) ----------
+
+
+def test_claude_newest_branch_without_current_leaf(claude_chats) -> None:
+    # The 2026-10 export has parent links on every message but no current_leaf:
+    # the edited first message and the regenerated reply must both be dropped.
+    chat = claude_chats["c0000000-0000-4000-8000-000000000005"]
+    assert [(m.sender, m.text) for m in chat.messages] == [
+        ("user", "How do I prune tomato plants?"),
+        ("assistant", "Remove the suckers below the first flower truss."),
+        ("user", "Thanks!"),
+    ]
+
+
+def test_claude_chat_without_exported_text_keeps_its_title(claude_chats) -> None:
+    chat = claude_chats["c0000000-0000-4000-8000-000000000006"]
+    assert chat.title == "Session with no exported text"
+    assert chat.messages == []  # its only message has no text and a nameless file
+
+
+def test_multi_part_export_reads_every_part(tmp_path: Path) -> None:
+    raw = (FIXTURES / "claude" / "conversations.json").read_text(encoding="utf-8")
+    first = json.loads(raw)[:2]
+    second = json.loads(raw)[2:4]
+    for index, part in (("000", first), ("001", second)):
+        with zipfile.ZipFile(tmp_path / f"conversations-{index}.zip", "w") as z:
+            z.writestr("conversations.json", json.dumps(part))
+    # An unrelated zip in the same folder must not be picked up.
+    with zipfile.ZipFile(tmp_path / "projects-000.zip", "w") as z:
+        z.writestr("projects/x.json", "{}")
+
+    ids = [c.source_id for c in ClaudeParser().parse(tmp_path / "conversations-000.zip")]
+    assert len(ids) == 4
+    assert export_parts(tmp_path / "conversations-001.zip") == [
+        tmp_path / "conversations-000.zip",
+        tmp_path / "conversations-001.zip",
+    ]
+
+
+def test_plain_json_file_is_accepted(tmp_path: Path) -> None:
+    shutil.copy(FIXTURES / "claude" / "conversations.json", tmp_path / "my-export.json")
+    assert len(list(ClaudeParser().parse(tmp_path / "my-export.json"))) == 6
+
+
+def test_manifest_gives_download_instructions(tmp_path: Path) -> None:
+    manifest = {
+        "version": "1.0",
+        "data_files": [
+            {"category": "conversations", "filename": "conversations-000.zip",
+             "export_url": "https://claude.ai/SECRET-LINK-SHOULD-NOT-BE-ECHOED"},
+        ],
+    }  # fmt: skip
+    path = tmp_path / "manifest-123.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ValueError) as error:
+        list(ClaudeParser().parse(path))
+    assert "manifest" in str(error.value)
+    assert "conversations-000.zip" in str(error.value)
+    assert "SECRET-LINK" not in str(error.value)
+
+
+def test_wrong_zip_names_the_right_one(tmp_path: Path) -> None:
+    with zipfile.ZipFile(tmp_path / "projects-000.zip", "w") as z:
+        z.writestr("projects/abc.json", json.dumps({"name": "x"}))
+    with pytest.raises(ValueError, match="conversations-000.zip"):
+        list(ClaudeParser().parse(tmp_path / "projects-000.zip"))

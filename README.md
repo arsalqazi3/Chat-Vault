@@ -20,14 +20,24 @@ tell me about my tomato plants last year?"*.
 
 You need the **Claude desktop app** (Windows or macOS).
 
-1. **Download your history.** In Claude: *Settings → Privacy → Export data*. You'll get an
-   email with a zip. Don't unzip it. (Optional: ChatGPT's is under *Settings → Data controls
-   → Export data*.)
+1. **Download your history** (two small steps):
+   1. In Claude: *Settings → Privacy → Export data*. You'll receive a small **manifest**
+      file (`manifest-….json`). It's only a list of download links, not your chats.
+   2. Open it in any text editor, find the entry whose `filename` is
+      **`conversations-000.zip`**, and open its `export_url` in the browser where you're
+      logged in to claude.ai. That zip is your chat history; the other zips (projects,
+      memories, …) aren't needed. Download it in one go: the links expire after 24 hours and
+      may only work once. (Very large accounts also get `conversations-001.zip` and so on;
+      download those into the same folder.) Keep the manifest private while the links work.
+
+   Optional: ChatGPT's export is under *Settings → Data controls → Export data*.
 2. **Download chat-vault:** on the [Releases page](https://github.com/arsalqazi3/Chat-Vault/releases),
    open the newest release and download `chat-vault-<version>.mcpb` under *Assets*.
 3. **Install it:** double-click the `.mcpb` file (or drag it into *Claude → Settings →
-   Extensions*).
-4. **Fill in the settings form:** choose your export zip, and a folder for the library
+   Extensions*). Claude warns that it's from an unverified developer, which is normal for
+   extensions that aren't in Anthropic's directory.
+4. **Fill in the settings form:** choose `conversations-000.zip` (no need to unzip it; any
+   further parts in the same folder are found automatically), and a folder for the library
    (the default `Documents/chat-vault` is fine).
 5. **Ask away** in a new chat: *"search my old chats for…"*. The first time, Claude asks
    permission to use chat-vault's tools. Allow them.
@@ -82,11 +92,11 @@ python -m venv .venv
 pip install --require-hashes -r requirements-dev.txt && pip install --no-deps -e .
 
 # Check what an export contains. Prints counts only, writes nothing:
-chat-vault-ingest --source claude --export path/to/claude-export.zip --dry-run
+chat-vault-ingest --source claude --export path/to/conversations-000.zip --dry-run
 
 # Build the library (re-run with a newer export at any time; it replaces the old copy):
 export CHAT_VAULT_DB_PATH=data/chat-vault.db      # PowerShell: $env:CHAT_VAULT_DB_PATH="data\chat-vault.db"
-chat-vault-ingest --source claude  --export path/to/claude-export.zip
+chat-vault-ingest --source claude  --export path/to/conversations-000.zip
 chat-vault-ingest --source chatgpt --export path/to/chatgpt-export.zip
 ```
 
@@ -121,7 +131,7 @@ docker run --rm --read-only --network none --cap-drop ALL --security-opt no-new-
   -v /ABSOLUTE/PATH/TO/exports:/export:ro \
   -v /ABSOLUTE/PATH/TO/chat-vault-data:/data \
   arslanasadqazi/chat-vault:latest \
-  python -m chat_vault.data.ingest --source claude --export /export/claude-export.zip
+  python -m chat_vault.data.ingest --source claude --export /export/conversations-000.zip
 ```
 
 On a Linux host, first run `sudo chown 10001:10001 /ABSOLUTE/PATH/TO/chat-vault-data` (Docker
